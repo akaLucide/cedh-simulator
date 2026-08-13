@@ -1,0 +1,100 @@
+1 Ral, Monsoon Mage / Ral, Leyline Prodigy (MH3) 247
+1 _____ Goblin (UNF) 107
+1 Abandon Attachments (TLA) 205
+1 An Offer You Can't Refuse (FDN) 160
+1 Ancient Tomb (UMA) 236
+1 Arid Mesa (MH2) 244
+1 Birgi, God of Storytelling / Harnfel, Horn of Bounty (KHM) 123
+1 Bloodstained Mire (MH3) 216
+1 Brain Freeze (SOA) 78
+1 Chain of Vapor (MB2) 156
+1 Chrome Mox (EMA) 219
+1 Command Tower (ECC) 59
+1 Deflecting Swat (CMM) 214
+1 Demand Answers (MKM) 122
+1 Desperate Ritual (MMA) 110
+1 Echo of Eons (MH1) 46
+1 Electro, Assaulting Battery (SPM) 76
+1 Fierce Guardianship (CMM) 94
+1 Fiery Islet (MH1) 238
+1 Flashback (SOS) 115
+1 Flooded Strand (MH3) 220
+1 Flow State (SOS) 49
+1 Flusterstorm (SOA) 83
+1 Frantic Search (TLE) 159
+1 Gamble (EMA) 132
+1 Gemstone Caverns (TSR) 280
+1 Gitaxian Probe (NPH) 35
+1 Glimpse the Impossible (MH3) 124
+1 Grapeshot (MMA) 116
+1 Great Furnace (MRD) 282
+1 Gut Shot (MM2) 117
+1 Hex Magic (MSH) 133
+1 Hexing Squelcher (ECL) 145
+1 Hidden Strings (DGM) 12
+1 Highway Robbery (OTJ) 129
+1 Invoke Calamity (NEO) 147
+1 Jeska's Will (SOA) 109
+1 Lava Dart (MH1) 134
+1 Lightning Bolt (MSC) 806
+1 Lion's Eye Diamond (VMA) 271
+1 Lotus Petal (TMP) 294
+1 Mana Vault (2X2) 308
+1 Mental Misstep (NPH) 38
+1 Mind's Desire (STA) 80
+1 Misty Rainforest (MH2) 250
+1 Mountain (HOB) 197
+1 Mox Amber (DOM) 224
+1 Mox Diamond (STH) 138
+1 Mox Opal (2XM) 275
+1 Mystic Remora (DMR) 59
+1 Mystical Tutor (EMA) 62
+1 Opera Love Song (FIN) 147
+1 Pact of Negation (MMA) 56
+1 Past in Flames (MM3) 105
+1 Pinnacle Monk / Mystic Peak (MH3) 246
+1 Polluted Delta (MH3) 224
+1 Pyretic Ritual (SOA) 111
+1 Pyroblast (EMA) 142
+1 Pyroclasm (DSK) 149
+1 Quiet Speculation (EMA) 68
+1 Ragavan, Nimble Pilferer (MH2) 138
+1 Reckless Impulse (VOW) 174
+1 Red Elemental Blast (A25) 147
+1 Reiterate (TSR) 182
+1 Rite of Flame (SS3) 7
+1 Rob the Archives (SNC) 122
+1 Romantic Rendezvous (SPM) 86
+1 Scalding Tarn (MH2) 254
+1 Sea Gate Restoration / Sea Gate, Reborn (ZNR) 76
+1 Seething Song (MRD) 104
+1 Shatterskull Smashing / Shatterskull, the Hammer Pass (ZNR) 161
+1 Shivan Reef (ORI) 251
+1 Simian Spirit Guide (TSR) 190
+1 Sink into Stupor / Soporific Springs (MH3) 241
+1 Snap (DMR) 66
+1 Sol Ring (ECC) 58
+1 Solve the Equation (STX) 54
+1 Springleaf Drum (ECL) 260
+1 Steam Vents (RTR) 247
+1 Storm of Memories (TLE) 126
+1 Storm-Kiln Artist (TDC) 235
+1 Strike It Rich (MH2) 143
+1 Tavern Scoundrel (MH2) 144
+1 Thundering Falls (MKM) 269
+1 Tibalt's Trickery (KHM) 153
+1 Timetwister (30A) 84
+1 Training Center (PLST) CMR-358
+1 Treasonous Ogre (CNS) 36
+1 Underworld Breach (THB) 161
+1 Untimely Malfunction (DSK) 161
+1 Vexing Bauble (MH3) 212
+1 Vision of Love (MSH) 158
+1 Volcanic Island (30A) 282
+1 Wheel of Fortune (30A) 179
+1 Wheel of Misfortune (CMR) 211
+1 Will of the Jeskai (TDC) 40
+1 Windfall (LCC) 180
+1 Witch's Mark (WOE) 158
+1 Wooded Foothills (MH3) 236
+1 Wrenn's Resolve (MOM) 173

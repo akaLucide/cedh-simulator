@@ -1,0 +1,549 @@
+{
+  "schemaVersion": 1,
+  "viewer": {
+    "seat": 1,
+    "id": 0,
+    "name": "Seat(1)-ral-monsoon-mage-user"
+  },
+  "game": {
+    "turn": 1,
+    "phase": "MAIN1",
+    "activePlayer": {
+      "seat": 1,
+      "id": 0,
+      "name": "Seat(1)-ral-monsoon-mage-user"
+    },
+    "priorityPlayer": {
+      "seat": 1,
+      "id": 0,
+      "name": "Seat(1)-ral-monsoon-mage-user"
+    },
+    "stack": []
+  },
+  "players": [
+    {
+      "seat": 1,
+      "id": 0,
+      "name": "Seat(1)-ral-monsoon-mage-user",
+      "life": 40,
+      "poison": 0,
+      "hasLost": false,
+      "zones": {
+        "hand": {
+          "count": 6,
+          "visibility": "viewer",
+          "cards": [
+            {
+              "id": "card-76",
+              "name": "Mox Opal",
+              "visibility": "known",
+              "faceDown": false,
+              "zone": "Hand",
+              "ownerSeat": 1,
+              "controllerSeat": 1
+            },
+            {
+              "id": "card-89",
+              "name": "Mox Amber",
+              "visibility": "known",
+              "faceDown": false,
+              "zone": "Hand",
+              "ownerSeat": 1,
+              "controllerSeat": 1
+            },
+            {
+              "id": "card-97",
+              "name": "Shatterskull Smashing",
+              "visibility": "known",
+              "faceDown": false,
+              "zone": "Hand",
+              "ownerSeat": 1,
+              "controllerSeat": 1
+            },
+            {
+              "id": "card-5",
+              "name": "Springleaf Drum",
+              "visibility": "known",
+              "faceDown": false,
+              "zone": "Hand",
+              "ownerSeat": 1,
+              "controllerSeat": 1
+            },
+            {
+              "id": "card-75",
+              "name": "Lava Dart",
+              "visibility": "known",
+              "faceDown": false,
+              "zone": "Hand",
+              "ownerSeat": 1,
+              "controllerSeat": 1
+            },
+            {
+              "id": "card-50",
+              "name": "Vexing Bauble",
+              "visibility": "known",
+              "faceDown": false,
+              "zone": "Hand",
+              "ownerSeat": 1,
+              "controllerSeat": 1
+            }
+          ]
+        },
+        "library": {
+          "count": 92,
+          "visibility": "count-only"
+        },
+        "battlefield": {
+          "count": 1,
+          "visibility": "card-objects",
+          "cards": [
+            {
+              "id": "card-90",
+              "name": "Soporific Springs",
+              "visibility": "known",
+              "faceDown": false,
+              "zone": "Battlefield",
+              "ownerSeat": 1,
+              "controllerSeat": 1,
+              "tapped": true
+            }
+          ]
+        },
+        "graveyard": {
+          "count": 0,
+          "visibility": "card-objects",
+          "cards": []
+        },
+        "exile": {
+          "count": 0,
+          "visibility": "card-objects",
+          "cards": []
+        },
+        "command": {
+          "count": 2,
+          "visibility": "card-objects",
+          "cards": [
+            {
+              "id": "card-100",
+              "name": "Ral, Monsoon Mage",
+              "visibility": "known",
+              "faceDown": false,
+              "zone": "Command",
+              "ownerSeat": 1,
+              "controllerSeat": 1
+            },
+            {
+              "id": "card-101",
+              "name": "Commander Effect",
+              "visibility": "known",
+              "faceDown": false,
+              "zone": "Command",
+              "ownerSeat": 1,
+              "controllerSeat": 1
+            }
+          ]
+        }
+      },
+      "commanders": [
+        {
+          "id": "card-100",
+          "name": "Ral, Monsoon Mage",
+          "visibility": "known",
+          "faceDown": false,
+          "zone": "Command",
+          "ownerSeat": 1,
+          "controllerSeat": 1,
+          "timesCast": 0
+        }
+      ]
+    },
+    {
+      "seat": 2,
+      "id": 1,
+      "name": "Seat(2)-blue-farm-matt-hayes-d-grid-2026-05-30",
+      "life": 40,
+      "poison": 0,
+      "hasLost": false,
+      "zones": {
+        "hand": {
+          "count": 7,
+          "visibility": "hidden"
+        },
+        "library": {
+          "count": 91,
+          "visibility": "count-only"
+        },
+        "battlefield": {
+          "count": 0,
+          "visibility": "card-objects",
+          "cards": []
+        },
+        "graveyard": {
+          "count": 0,
+          "visibility": "card-objects",
+          "cards": []
+        },
+        "exile": {
+          "count": 0,
+          "visibility": "card-objects",
+          "cards": []
+        },
+        "command": {
+          "count": 3,
+          "visibility": "card-objects",
+          "cards": [
+            {
+              "id": "card-200",
+              "name": "Kraum, Ludevic's Opus",
+              "visibility": "known",
+              "faceDown": false,
+              "zone": "Command",
+              "ownerSeat": 2,
+              "controllerSeat": 2
+            },
+            {
+              "id": "card-201",
+              "name": "Commander Effect",
+              "visibility": "known",
+              "faceDown": false,
+              "zone": "Command",
+              "ownerSeat": 2,
+              "controllerSeat": 2
+            },
+            {
+              "id": "card-202",
+              "name": "Tymna the Weaver",
+              "visibility": "known",
+              "faceDown": false,
+              "zone": "Command",
+              "ownerSeat": 2,
+              "controllerSeat": 2
+            }
+          ]
+        }
+      },
+      "commanders": [
+        {
+          "id": "card-200",
+          "name": "Kraum, Ludevic's Opus",
+          "visibility": "known",
+          "faceDown": false,
+          "zone": "Command",
+          "ownerSeat": 2,
+          "controllerSeat": 2,
+          "timesCast": 0
+        },
+        {
+          "id": "card-202",
+          "name": "Tymna the Weaver",
+          "visibility": "known",
+          "faceDown": false,
+          "zone": "Command",
+          "ownerSeat": 2,
+          "controllerSeat": 2,
+          "timesCast": 0
+        }
+      ]
+    },
+    {
+      "seat": 3,
+      "id": 2,
+      "name": "Seat(3)-kinnan-jason-doan-siege-2026-06-13",
+      "life": 40,
+      "poison": 0,
+      "hasLost": false,
+      "zones": {
+        "hand": {
+          "count": 7,
+          "visibility": "hidden"
+        },
+        "library": {
+          "count": 92,
+          "visibility": "count-only"
+        },
+        "battlefield": {
+          "count": 0,
+          "visibility": "card-objects",
+          "cards": []
+        },
+        "graveyard": {
+          "count": 0,
+          "visibility": "card-objects",
+          "cards": []
+        },
+        "exile": {
+          "count": 0,
+          "visibility": "card-objects",
+          "cards": []
+        },
+        "command": {
+          "count": 2,
+          "visibility": "card-objects",
+          "cards": [
+            {
+              "id": "card-302",
+              "name": "Kinnan, Bonder Prodigy",
+              "visibility": "known",
+              "faceDown": false,
+              "zone": "Command",
+              "ownerSeat": 3,
+              "controllerSeat": 3
+            },
+            {
+              "id": "card-303",
+              "name": "Commander Effect",
+              "visibility": "known",
+              "faceDown": false,
+              "zone": "Command",
+              "ownerSeat": 3,
+              "controllerSeat": 3
+            }
+          ]
+        }
+      },
+      "commanders": [
+        {
+          "id": "card-302",
+          "name": "Kinnan, Bonder Prodigy",
+          "visibility": "known",
+          "faceDown": false,
+          "zone": "Command",
+          "ownerSeat": 3,
+          "controllerSeat": 3,
+          "timesCast": 0
+        }
+      ]
+    },
+    {
+      "seat": 4,
+      "id": 3,
+      "name": "Seat(4)-sisay-matthew-swaney-eldritch-bastion-2026-06-27",
+      "life": 40,
+      "poison": 0,
+      "hasLost": false,
+      "zones": {
+        "hand": {
+          "count": 7,
+          "visibility": "hidden"
+        },
+        "library": {
+          "count": 92,
+          "visibility": "count-only"
+        },
+        "battlefield": {
+          "count": 0,
+          "visibility": "card-objects",
+          "cards": []
+        },
+        "graveyard": {
+          "count": 0,
+          "visibility": "card-objects",
+          "cards": []
+        },
+        "exile": {
+          "count": 0,
+          "visibility": "card-objects",
+          "cards": []
+        },
+        "command": {
+          "count": 2,
+          "visibility": "card-objects",
+          "cards": [
+            {
+              "id": "card-403",
+              "name": "Sisay, Weatherlight Captain",
+              "visibility": "known",
+              "faceDown": false,
+              "zone": "Command",
+              "ownerSeat": 4,
+              "controllerSeat": 4
+            },
+            {
+              "id": "card-404",
+              "name": "Commander Effect",
+              "visibility": "known",
+              "faceDown": false,
+              "zone": "Command",
+              "ownerSeat": 4,
+              "controllerSeat": 4
+            }
+          ]
+        }
+      },
+      "commanders": [
+        {
+          "id": "card-403",
+          "name": "Sisay, Weatherlight Captain",
+          "visibility": "known",
+          "faceDown": false,
+          "zone": "Command",
+          "ownerSeat": 4,
+          "controllerSeat": 4,
+          "timesCast": 0
+        }
+      ]
+    }
+  ],
+  "availableActions": {
+    "enumerationVersion": 1,
+    "actions": [
+      {
+        "id": "pass-priority",
+        "category": "PASS_PRIORITY",
+        "executable": true
+      },
+      {
+        "id": "ability-1253",
+        "category": "CAST_SPELL",
+        "source": {
+          "id": "card-76",
+          "name": "Mox Opal",
+          "visibility": "known",
+          "faceDown": false,
+          "zone": "Hand",
+          "ownerSeat": 1,
+          "controllerSeat": 1
+        },
+        "description": "Mox Opal",
+        "cost": "",
+        "api": "PermanentNoncreature",
+        "usesTargeting": false,
+        "timingAndZoneLegal": true,
+        "executable": false,
+        "requiresChoiceExpansion": true
+      },
+      {
+        "id": "ability-1260",
+        "category": "CAST_SPELL",
+        "source": {
+          "id": "card-89",
+          "name": "Mox Amber",
+          "visibility": "known",
+          "faceDown": false,
+          "zone": "Hand",
+          "ownerSeat": 1,
+          "controllerSeat": 1
+        },
+        "description": "Mox Amber",
+        "cost": "",
+        "api": "PermanentNoncreature",
+        "usesTargeting": false,
+        "timingAndZoneLegal": true,
+        "executable": false,
+        "requiresChoiceExpansion": true
+      },
+      {
+        "id": "ability-1261",
+        "category": "CAST_SPELL",
+        "source": {
+          "id": "card-97",
+          "name": "Shatterskull Smashing",
+          "visibility": "known",
+          "faceDown": false,
+          "zone": "Hand",
+          "ownerSeat": 1,
+          "controllerSeat": 1
+        },
+        "description": "CARDNAME deals X damage divided as you choose among up to two target creatures and/or planeswalkers. If X is 6 or more, CARDNAME deals twice X damage divided as you choose among them instead.",
+        "cost": "",
+        "api": "DealDamage",
+        "usesTargeting": true,
+        "timingAndZoneLegal": true,
+        "executable": false,
+        "requiresChoiceExpansion": true
+      },
+      {
+        "id": "ability-1267",
+        "category": "CAST_SPELL",
+        "source": {
+          "id": "card-5",
+          "name": "Springleaf Drum",
+          "visibility": "known",
+          "faceDown": false,
+          "zone": "Hand",
+          "ownerSeat": 1,
+          "controllerSeat": 1
+        },
+        "description": "Springleaf Drum",
+        "cost": "",
+        "api": "PermanentNoncreature",
+        "usesTargeting": false,
+        "timingAndZoneLegal": true,
+        "executable": false,
+        "requiresChoiceExpansion": true
+      },
+      {
+        "id": "ability-1273",
+        "category": "CAST_SPELL",
+        "source": {
+          "id": "card-75",
+          "name": "Lava Dart",
+          "visibility": "known",
+          "faceDown": false,
+          "zone": "Hand",
+          "ownerSeat": 1,
+          "controllerSeat": 1
+        },
+        "description": "CARDNAME deals 1 damage to any target.",
+        "cost": "",
+        "api": "DealDamage",
+        "usesTargeting": true,
+        "timingAndZoneLegal": true,
+        "executable": false,
+        "requiresChoiceExpansion": true
+      },
+      {
+        "id": "ability-1289",
+        "category": "CAST_SPELL",
+        "source": {
+          "id": "card-50",
+          "name": "Vexing Bauble",
+          "visibility": "known",
+          "faceDown": false,
+          "zone": "Hand",
+          "ownerSeat": 1,
+          "controllerSeat": 1
+        },
+        "description": "Vexing Bauble",
+        "cost": "",
+        "api": "PermanentNoncreature",
+        "usesTargeting": false,
+        "timingAndZoneLegal": true,
+        "executable": false,
+        "requiresChoiceExpansion": true
+      },
+      {
+        "id": "ability-1298",
+        "category": "CAST_SPELL",
+        "source": {
+          "id": "card-100",
+          "name": "Ral, Monsoon Mage",
+          "visibility": "known",
+          "faceDown": false,
+          "zone": "Command",
+          "ownerSeat": 1,
+          "controllerSeat": 1
+        },
+        "description": "Ral, Monsoon Mage - Creature 1 / 3",
+        "cost": "",
+        "api": "PermanentCreature",
+        "usesTargeting": false,
+        "timingAndZoneLegal": true,
+        "executable": false,
+        "requiresChoiceExpansion": true
+      }
+    ],
+    "completeness": "pass-and-land-actions-plus-candidate-abilities",
+    "limitations": [
+      "Costs, modes, targets, X values, divisions, ordering, and optional costs are not expanded yet.",
+      "Mana affordability is not proof-checked by this enumeration pass.",
+      "Special actions other than land play are not enumerated yet."
+    ]
+  },
+  "informationPolicy": {
+    "opponentHands": "count-only",
+    "allLibraries": "count-only",
+    "faceDownCards": "opaque-id-only-unless-viewer-may-look",
+    "knownCardMemory": "not-yet-implemented"
+  }
+}

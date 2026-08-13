@@ -1,0 +1,20 @@
+{
+  "name": "cedh-simulator",
+  "version": "0.5.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test",
+    "build:decks": "node scripts/build-forge-decks.mjs",
+    "audit:forge": "node scripts/audit-forge-support.mjs",
+    "observe": "node scripts/capture-priority-observation.mjs",
+    "probe:land": "node scripts/capture-priority-observation.mjs --play-land \"Sink into Stupor\"",
+    "probe:spell": "node scripts/capture-priority-observation.mjs --cast-spell \"Mox Amber\"",
+    "probe:targeted": "node scripts/capture-priority-observation.mjs --cast-targeted-spell \"Lava Dart\" --mana-source \"Mountain\" --additional-mana-source \"Great Furnace\" --target-player-seat 2",
+    "simulate": "node scripts/run-forge-baseline.mjs",
+    "simulate:dry": "node scripts/run-forge-baseline.mjs --dry-run"
+  }
+}

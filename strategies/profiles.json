@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 1,
+  "profiles": [
+    {
+      "deckId": "ral-monsoon-mage-user",
+      "archetype": ["turbo", "storm", "graveyard"],
+      "commanderRole": "cost reducer, storm enabler, and payoff",
+      "mulliganGoals": [
+        "two usable mana sources by turn one",
+        "a card-velocity or tutor effect",
+        "a credible path to Ral or a commander-independent storm turn",
+        "keep interaction only when the rest of the hand advances a plan"
+      ],
+      "primaryPlans": [
+        {
+          "id": "breach-led-brain-freeze",
+          "keyCards": ["Underworld Breach", "Lion's Eye Diamond", "Brain Freeze"],
+          "goal": "generate mana and graveyard density, repeatedly cast Brain Freeze, and mill the table"
+        },
+        {
+          "id": "ral-ultimate-storm",
+          "keyCards": ["Ral, Monsoon Mage", "Ral, Leyline Prodigy"],
+          "goal": "transform Ral with high loyalty, resolve the -8, then convert free spells into lethal storm"
+        },
+        {
+          "id": "graveyard-storm",
+          "keyCards": ["Past in Flames", "Echo of Eons", "Brain Freeze", "Grapeshot"],
+          "goal": "recast rituals and velocity spells until a storm payoff is lethal"
+        }
+      ],
+      "resourcePriorities": [
+        "preserve red mana during the combo turn",
+        "count graveyard cards available to Breach separately from combo pieces",
+        "track spells cast before transforming Ral",
+        "avoid exposing Ral when a commander-independent line is stronger"
+      ],
+      "mustModel": [
+        "storm count",
+        "Ral loyalty on entry",
+        "coin-flip branches",
+        "graveyard escape fuel",
+        "temporary play permissions",
+        "opposing free interaction"
+      ]
+    },
+    {
+      "deckId": "blue-farm-matt-hayes-d-grid-2026-05-30",
+      "archetype": ["midrange", "turbo", "stack-control"],
+      "commanderRole": "card advantage, pressure, and free-interaction enablement",
+      "mulliganGoals": [
+        "fast mana plus a draw engine or tutor",
+        "a protected turn-two development",
+        "avoid hands whose only plan is reactive one-for-one interaction"
+      ],
+      "primaryPlans": [
+        {
+          "id": "breach-led-brain-freeze",
+          "keyCards": ["Underworld Breach", "Lion's Eye Diamond", "Brain Freeze"],
+          "goal": "assemble a protected Breach loop, often through Intuition or Gifts Ungiven piles"
+        },
+        {
+          "id": "ad-nauseam-conversion",
+          "keyCards": ["Ad Nauseam", "Borne Upon a Wind", "Final Fortune"],
+          "goal": "turn a large card influx into a same-window or extra-turn win attempt"
+        }
+      ],
+      "resourcePriorities": [
+        "develop card advantage without becoming unable to contest the first win attempt",
+        "preserve Silence effects for the decisive stack",
+        "treat Kraum and Tymna combat triggers as resources rather than the win condition"
+      ],
+      "mustModel": ["priority traps", "Silence windows", "Breach piles", "free interaction", "combat draw triggers"]
+    },
+    {
+      "deckId": "kinnan-jason-doan-siege-2026-06-13",
+      "archetype": ["mana-engine", "creature-combo", "control"],
+      "commanderRole": "mana multiplier and repeatable top-of-library engine",
+      "mulliganGoals": [
+        "turn-one acceleration",
+        "Kinnan plus a nonland mana source",
+        "an engine, tutor, or counterspell that gives the mana a purpose"
+      ],
+      "primaryPlans": [
+        {
+          "id": "kinnan-basalt",
+          "keyCards": ["Kinnan, Bonder Prodigy", "Basalt Monolith"],
+          "goal": "make unbounded colorless mana and convert it through Thrasios, Kinnan activations, or Finale of Devastation"
+        },
+        {
+          "id": "hullbreaker-rock-loop",
+          "keyCards": ["Hullbreaker Horror", "Chrome Mox", "Mox Amber", "Mox Opal", "Lotus Petal"],
+          "goal": "use recastable cheap artifacts to generate mana and control the stack or battlefield"
+        }
+      ],
+      "resourcePriorities": [
+        "sequence nonland mana after Kinnan when the tempo cost is acceptable",
+        "hold activations for the latest safe priority window",
+        "distinguish colorless infinite mana from colored-mana requirements"
+      ],
+      "mustModel": ["mana-source identity", "Kinnan activation hits", "copy effects", "unbounded loops", "instant-speed activations"]
+    },
+    {
+      "deckId": "sisay-matthew-swaney-eldritch-bastion-2026-06-27",
+      "archetype": ["toolbox", "permanent-combo", "adaptive"],
+      "commanderRole": "repeatable legendary tutor and combo-chain engine",
+      "mulliganGoals": [
+        "multiple colors of mana",
+        "a turn-one accelerant",
+        "a realistic path to activate Sisay while retaining protection"
+      ],
+      "primaryPlans": [
+        {
+          "id": "sisay-tutor-chain",
+          "keyCards": ["Sisay, Weatherlight Captain", "Derevi, Empyrial Tactician", "Ioreth of the Healing House", "Emiel the Blessed"],
+          "goal": "chain legendary permanents into repeatable untaps, mana, protection, and a deterministic finish"
+        },
+        {
+          "id": "activated-ability-engine",
+          "keyCards": ["Agatha's Soul Cauldron", "Marvin, Murderous Mimic", "Selvala, Heart of the Wilds"],
+          "goal": "assemble a compact activated-ability engine that produces repeatable resources"
+        }
+      ],
+      "resourcePriorities": [
+        "maintain all five colors rather than maximizing raw mana",
+        "increase Sisay's power only when it unlocks the required tutor value",
+        "tutor interaction when another player can win before the engine completes"
+      ],
+      "mustModel": ["legendary tutor ranges", "five-color mana", "untap chains", "copied activated abilities", "rule-of-law and timing constraints"]
+    }
+  ]
+}

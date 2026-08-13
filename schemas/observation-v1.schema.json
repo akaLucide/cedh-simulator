@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.cedh-simulator/schemas/observation-v1.schema.json",
+  "title": "cEDH Simulator Player-Scoped Observation v1",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "viewer",
+    "game",
+    "players",
+    "availableActions",
+    "informationPolicy"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "viewer": {
+      "$ref": "#/$defs/playerReference"
+    },
+    "game": {
+      "type": "object",
+      "required": ["turn", "phase", "activePlayer", "priorityPlayer", "stack"],
+      "properties": {
+        "turn": { "type": "integer", "minimum": 1 },
+        "phase": { "type": ["string", "null"] },
+        "activePlayer": { "$ref": "#/$defs/playerReference" },
+        "priorityPlayer": { "$ref": "#/$defs/playerReference" },
+        "stack": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/stackItem" }
+        }
+      }
+    },
+    "players": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "allOf": [
+          { "$ref": "#/$defs/playerReference" },
+          {
+            "type": "object",
+            "required": ["life", "poison", "hasLost", "zones", "commanders"]
+          }
+        ]
+      }
+    },
+    "availableActions": {
+      "type": "object",
+      "required": ["enumerationVersion", "actions", "completeness", "limitations"],
+      "properties": {
+        "enumerationVersion": { "const": 1 },
+        "actions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/action" }
+        },
+        "completeness": { "type": "string" },
+        "limitations": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "actionContext": { "$ref": "#/$defs/action" },
+    "informationPolicy": { "type": "object" }
+  },
+  "$defs": {
+    "playerReference": {
+      "type": "object",
+      "required": ["seat", "id", "name"],
+      "properties": {
+        "seat": { "type": "integer", "minimum": 1 },
+        "id": { "type": "integer" },
+        "name": { "type": "string" }
+      }
+    },
+    "action": {
+      "type": "object",
+      "required": ["id", "category", "executable"],
+      "properties": {
+        "id": { "type": "string" },
+        "category": {
+          "enum": [
+            "PASS_PRIORITY",
+            "PLAY_LAND",
+            "CAST_SPELL",
+            "ACTIVATE_MANA_ABILITY",
+            "ACTIVATE_ABILITY"
+          ]
+        },
+        "sourceCardId": { "type": "string" },
+        "abilityId": { "type": "string" },
+        "expansionVersion": { "type": "integer", "minimum": 1 },
+        "manaCost": { "type": ["string", "null"] },
+        "printedManaCost": { "type": ["string", "null"] },
+        "executable": { "type": "boolean" },
+        "requiresChoiceExpansion": { "type": "boolean" },
+        "choices": {
+          "type": "object",
+          "properties": {
+            "targets": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/target" }
+            },
+            "payment": { "$ref": "#/$defs/payment" }
+          }
+        },
+        "status": { "enum": ["selected", "on-stack", "resolved"] }
+      }
+    },
+    "target": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": { "enum": ["PLAYER", "CARD", "SPELL"] },
+        "seat": { "type": "integer", "minimum": 1 },
+        "id": { "type": ["integer", "string"] },
+        "name": { "type": "string" },
+        "sourceCardId": { "type": "string" },
+        "source": { "type": "string" },
+        "controllerSeat": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "payment": {
+      "type": "object",
+      "required": ["manaCount", "mana"],
+      "properties": {
+        "kind": { "const": "MANA" },
+        "manaCount": { "type": "integer", "minimum": 0 },
+        "mana": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["color", "sourceCardId", "source"],
+            "properties": {
+              "color": { "type": "string" },
+              "sourceCardId": { "type": "string" },
+              "source": { "type": "string" },
+              "sourceControllerSeat": { "type": "integer", "minimum": 1 },
+              "manaAbilityId": { "type": "string" }
+            }
+          }
+        },
+        "lifePaid": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "stackItem": {
+      "type": "object",
+      "required": ["id", "sourceCardId", "source", "controllerSeat", "kind", "description", "targets", "payment"],
+      "properties": {
+        "id": { "type": "string" },
+        "sourceCardId": { "type": "string" },
+        "source": { "type": "string" },
+        "controllerSeat": { "type": "integer", "minimum": 1 },
+        "kind": { "enum": ["spell", "trigger", "ability"] },
+        "description": { "type": "string" },
+        "targets": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/target" }
+        },
+        "payment": { "$ref": "#/$defs/payment" }
+      }
+    }
+  }
+}

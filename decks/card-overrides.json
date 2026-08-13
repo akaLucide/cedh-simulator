@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "substitutions": [
+    {
+      "requestedName": "_____ Goblin",
+      "engineName": "\"Name Sticker\" Goblin",
+      "policy": "accepted-digital-substitute",
+      "approved": true,
+      "approvedAt": "2026-08-12",
+      "reason": "Use the easiest implementation path for the initial simulator."
+    }
+  ]
+}
+

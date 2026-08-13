@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "selectionPolicy": "weighted_by_recent_tournament_popularity",
+  "decks": [
+    {
+      "id": "blue-farm-matt-hayes-d-grid-2026-05-30",
+      "commanders": ["Kraum, Ludevic's Opus", "Tymna the Weaver"],
+      "source": "https://topdeck.gg/deck/d-grid-on-the-stack/z0rVgKt4HGOWE57DB3qolitDrri1",
+      "event": "Just Jam D-Grid",
+      "standing": "1/200",
+      "approved": true,
+      "enabled": true,
+      "approvedAt": "2026-08-12"
+    },
+    {
+      "id": "kinnan-jason-doan-siege-2026-06-13",
+      "commanders": ["Kinnan, Bonder Prodigy"],
+      "source": "https://topdeck.gg/deck/level-7s-siege-at-the-castle-10k/10XZGpOw5vVlD7VeYRO1XvBv3Ft2",
+      "event": "SIEGE cEDH 10K",
+      "standing": "1/308",
+      "approved": true,
+      "enabled": true,
+      "approvedAt": "2026-08-12"
+    },
+    {
+      "id": "sisay-matthew-swaney-eldritch-bastion-2026-06-27",
+      "commanders": ["Sisay, Weatherlight Captain"],
+      "source": "https://topdeck.gg/deck/the-eldritch-bastion-20k-diamond-event/nbgAlOsNvrgyZ7RnFZf3BbercT53",
+      "event": "The Eldritch Bastion 20K Diamond Event",
+      "standing": "1/88",
+      "approved": true,
+      "enabled": true,
+      "approvedAt": "2026-08-12"
+    }
+  ]
+}
+

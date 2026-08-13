@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-12T22:20:24.623Z",
+  "forge": {
+    "version": "2.0.15-SNAPSHOT-08.12",
+    "buildTimestamp": "2026-08-12 18:25:41",
+    "jarSha256": "e01c7717b50b0f80d3a6ce2720130d889716685a9b9e3fae980c21e8d058e6a9"
+  },
+  "configuration": {
+    "format": "commander",
+    "games": 1,
+    "baseSeed": 20260812,
+    "timeoutSeconds": 120,
+    "processIsolation": true,
+    "decks": [
+      {
+        "player": 1,
+        "id": "ral-monsoon-mage-user",
+        "file": "ral.dck"
+      },
+      {
+        "player": 2,
+        "id": "blue-farm-matt-hayes-d-grid-2026-05-30",
+        "file": "blue-farm.dck"
+      },
+      {
+        "player": 3,
+        "id": "kinnan-jason-doan-siege-2026-06-13",
+        "file": "kinnan.dck"
+      },
+      {
+        "player": 4,
+        "id": "sisay-matthew-swaney-eldritch-bastion-2026-06-27",
+        "file": "sisay.dck"
+      }
+    ]
+  },
+  "runs": [
+    {
+      "game": 1,
+      "seed": 20260812,
+      "status": "completed",
+      "winner": "Ai(2)-blue-farm-matt-hayes-d-grid-2026-05-30",
+      "turn": 19,
+      "winDescription": "all opponents lost after reaching zero life",
+      "engineDurationMs": 38547,
+      "wallDurationMs": 43749,
+      "exitCode": 0,
+      "signal": null
+    }
+  ]
+}

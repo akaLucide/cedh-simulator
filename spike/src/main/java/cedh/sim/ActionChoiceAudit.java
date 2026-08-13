@@ -38,6 +38,25 @@ public final class ActionChoiceAudit {
     }
 
     /**
+     * The pre-execution gate: refuses any action still hiding a decision.
+     *
+     * <p>Every probe controller that hands an ability to Forge calls this, so the
+     * rule that {@code executable} means "nothing left unrepresented" has exactly
+     * one definition. Callers supply the choices for the action they are about to
+     * execute — the same list the observation publishes for it — and this decides
+     * whether Forge may see it.</p>
+     *
+     * <p>Refusing here rather than inside Forge matters: once the engine has the
+     * ability, the stock AI will answer whatever it is asked, and the run produces
+     * plausible-looking data recording a decision nobody made.</p>
+     */
+    public static void requireRepresented(String context, List<UnrepresentedChoice> choices) {
+        if (!choices.isEmpty()) {
+            throw new UnrepresentedChoiceException(context, choices);
+        }
+    }
+
+    /**
      * Audits one enumerated action.
      *
      * <p>Only land plays have a proven audit path in this milestone. Every other

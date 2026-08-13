@@ -81,6 +81,15 @@ public final class TargetedSpellProbeControllerAi extends PlayerControllerAi {
                                     + "; truncated=" + expansion.truncated()
                     ));
 
+            // Gated on the same typed list that is serialized into this action's
+            // published JSON. It is empty because expansion proved every choice
+            // represented; the check exists so a future expander that stops
+            // proving that cannot silently execute anyway.
+            ActionChoiceAudit.requireRepresented(
+                    "Expanded cast action " + selectedAction.json().get("id"),
+                    selectedAction.unrepresentedChoices()
+            );
+
             SpellAbility ability = selectedAction.ability();
             ability.resetTargets();
             if (!ability.canTarget(selectedAction.target())

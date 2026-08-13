@@ -21,10 +21,21 @@ analysis, and a browser-based tabletop UI.
   an AI crash or timeout cannot corrupt the next game.
 - A real turn-one Ral priority window now exports deterministic, player-scoped
   JSON without exposing opponent hand or library identities.
-- The adapter executes and deterministically replays its first non-pass action:
-  Sink into Stupor's MDFC land face enters tapped as Soporific Springs.
-- It also casts Mox Amber, exposes the stack priority window, completes the
-  four-seat pass cycle, resolves it, and returns priority to Ral.
+- **Historical (v1 evidence, no longer a compliant executable path).** The
+  adapter executed and deterministically replayed Sink into Stupor's MDFC land
+  face, entering tapped as Soporific Springs, and cast Mox Amber through a full
+  four-seat pass cycle to resolution. Those captures are frozen in `examples/`
+  as the record of what v1 did. Both actions are non-executable under v2, for
+  the reasons in the next two bullets.
+- Verified against Forge `2.0.15-SNAPSHOT-08.13`: Sink into Stupor, Shatterskull
+  Smashing, Sea Gate Restoration and Pinnacle Monk all have land faces that
+  enter tapped *unless* the controller pays three life, and Steam Vents two. The
+  seed-20260812 opening hand therefore offers no executable land action at all,
+  so the executable-land proof uses a staged Command Tower — the audit proves
+  its entry choice-free, and it enters untapped with life unchanged.
+- An action is executable only when the audit proved every decision represented.
+  Unaudited casts such as Mox Amber are refused *before* they reach Forge, so
+  stock AI never silently answers a choice on the player's behalf.
 - A controlled Lava Dart probe now represents the exact target and mana-source
   choices, verifies the actual payment on the stack, resolves one damage to
   Blue Farm, and deterministically replays all three observations.
@@ -94,6 +105,17 @@ The default targeted probe builds a controlled state containing Mountain and
 Great Furnace. Both payments appear as separate executable actions for every
 legal player target, while the scripted selection chooses Mountain and Blue
 Farm so the stack receipt can verify exact execution.
+
+To confirm that an unaudited cast is refused rather than executed:
+
+```powershell
+npm run verify:spell-guard -- --forge-root C:\path\to\forge
+```
+
+This replaces the former `probe:spell`, which cast Mox Amber even though the
+observation it wrote in the same run marked that action non-executable. The
+command exits 0 only after confirming the refusal happened before the card
+reached the stack and produced no stack or resolved capture.
 
 ## Project boundary
 

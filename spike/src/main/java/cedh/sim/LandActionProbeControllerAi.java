@@ -147,12 +147,10 @@ public class LandActionProbeControllerAi extends PlayerControllerAi {
      * No production path can select that subclass.</p>
      */
     protected void refuseIfIncomplete(SpellAbility ability, List<UnrepresentedChoice> choices) {
-        if (!choices.isEmpty()) {
-            throw new UnrepresentedChoiceException(
-                    "Land action for " + ability.getHostCard().getName(),
-                    choices
-            );
-        }
+        ActionChoiceAudit.requireRepresented(
+                "Land action for " + ability.getHostCard().getName(),
+                choices
+        );
     }
 
     protected SpellAbility selectLandAbility() {

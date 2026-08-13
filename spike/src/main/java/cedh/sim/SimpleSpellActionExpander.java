@@ -263,10 +263,15 @@ public final class SimpleSpellActionExpander {
         action.put("usesTargeting", true);
         action.put("timingAndZoneLegal", true);
         // This action reached the end of expansion with an exact target and an
-        // exact payment, so the empty list is an assertion, not a default.
-        action.put("unrepresentedChoices", List.of());
-        action.put("executable", true);
-        action.put("requiresChoiceExpansion", false);
+        // exact payment, so the empty list is an assertion, not a default. The
+        // same list object is both serialized here and gated on before execution,
+        // so the published capture and the executor can never disagree.
+        List<UnrepresentedChoice> unrepresentedChoices = List.of();
+        action.put("unrepresentedChoices", unrepresentedChoices.stream()
+                .map(UnrepresentedChoice::toJson)
+                .toList());
+        action.put("executable", unrepresentedChoices.isEmpty());
+        action.put("requiresChoiceExpansion", !unrepresentedChoices.isEmpty());
 
         Map<String, Object> targetChoice = new LinkedHashMap<>();
         targetChoice.put("kind", "PLAYER");
@@ -281,7 +286,7 @@ public final class SimpleSpellActionExpander {
         choices.put("targets", List.of(targetChoice));
         choices.put("payment", payment);
         action.put("choices", choices);
-        return new ExpandedAction(action, ability, target, plan);
+        return new ExpandedAction(action, ability, target, plan, unrepresentedChoices);
     }
 
     private static Map<String, Object> manaChoice(Player viewer, ManaOption option) {
@@ -304,11 +309,20 @@ public final class SimpleSpellActionExpander {
     ) {
     }
 
+    /**
+     * One fully specified action.
+     *
+     * <p>{@code unrepresentedChoices} is the typed source of truth: {@code json}
+     * serializes this very list, and the executor gates on it before handing the
+     * ability to Forge. Keeping one value rather than recomputing it means the
+     * published capture and the execution decision cannot drift apart.</p>
+     */
     public record ExpandedAction(
             Map<String, Object> json,
             SpellAbility ability,
             GameObject target,
-            ManaPlan payment
+            ManaPlan payment,
+            List<UnrepresentedChoice> unrepresentedChoices
     ) {
     }
 

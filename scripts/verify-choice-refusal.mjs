@@ -4,9 +4,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildForgeDecks } from './lib/decks.mjs';
 import { assertPinnedForgeDistribution } from './lib/forge-preflight.mjs';
+import { REFUSED_EXIT_CODE, spellGuardEvidenceErrors } from './lib/refusal-evidence.mjs';
 
 /**
- * Verifies the two refusal paths that keep an unrepresented decision from
+ * Verifies the refusal paths that keep an unrepresented decision from
  * reaching stock Forge AI.
  *
  * Both underlying probes are *supposed* to fail: they end by throwing
@@ -18,9 +19,12 @@ import { assertPinnedForgeDistribution } from './lib/forge-preflight.mjs';
  *
  *   --mode guard  (A3) the production gate refuses before Forge is called
  *   --mode fault  (A4) with the gate bypassed, the decision hook itself throws
+ *   --mode spell       an unaudited cast is refused before it reaches the stack
+ *
+ * The `spell` evidence rules live in ./lib/refusal-evidence.mjs so they can be
+ * tested directly, rather than by breaking the production gate to see whether
+ * this script notices.
  */
-
-const REFUSED_EXIT_CODE = 3;
 
 function option(name, fallback) {
   const index = process.argv.indexOf(name);
@@ -28,8 +32,10 @@ function option(name, fallback) {
 }
 
 const mode = option('--mode');
-if (mode !== 'guard' && mode !== 'fault') {
-  throw new Error('Usage: --mode <guard|fault> --forge-root <path> --source <card> [--seed n] [--seat n]');
+if (mode !== 'guard' && mode !== 'fault' && mode !== 'spell') {
+  throw new Error(
+    'Usage: --mode <guard|fault|spell> --forge-root <path> --source <card> [--seed n] [--seat n]'
+  );
 }
 const forgeRootOption = option('--forge-root');
 if (!forgeRootOption) throw new Error('--forge-root is required');
@@ -46,6 +52,8 @@ const forgeRoot = path.resolve(forgeRootOption);
 const workDirectory = path.join(projectRoot, `build/refusal-${mode}`);
 const beforeOutput = path.join(workDirectory, 'before.json');
 const afterOutput = path.join(workDirectory, 'after.json');
+const stackOutput = path.join(workDirectory, 'stack.json');
+const resolvedOutput = path.join(workDirectory, 'resolved.json');
 const deckOutput = path.join(projectRoot, 'build/forge-decks');
 const classes = path.join(projectRoot, 'spike/build/classes');
 
@@ -102,7 +110,13 @@ if (compilation.status !== 0) {
 
 const mainClass = mode === 'guard'
   ? 'cedh.sim.LandActionProbeMain'
-  : 'cedh.sim.ChoiceHookFaultProbeMain';
+  : mode === 'fault'
+    ? 'cedh.sim.ChoiceHookFaultProbeMain'
+    : 'cedh.sim.SpellActionProbeMain';
+
+const outputArgs = mode === 'spell'
+  ? ['--before', beforeOutput, '--stack', stackOutput, '--resolved', resolvedOutput]
+  : ['--before', beforeOutput, '--after', afterOutput];
 
 const probe = spawnSync('java', [
   '-Xmx4096m',
@@ -115,8 +129,7 @@ const probe = spawnSync('java', [
   '--seed', String(seed),
   '--phase', 'MAIN1',
   '--source', sourceName,
-  '--before', beforeOutput,
-  '--after', afterOutput
+  ...outputArgs
 ], { cwd: forgeRoot, encoding: 'utf8', timeout: timeoutSeconds * 1000, maxBuffer: 64 * 1024 * 1024 });
 
 const output = `${probe.stdout ?? ''}${probe.stderr ?? ''}`;
@@ -127,15 +140,30 @@ const require = (condition, message) => {
   if (!condition) failures.push(message);
 };
 
-require(
-  probe.status === REFUSED_EXIT_CODE,
-  `expected the probe to refuse with exit code ${REFUSED_EXIT_CODE}, got ${probe.status}`
-);
-require(
-  output.includes('PROBE_REFUSED_WITH=UnrepresentedChoiceException'),
-  'expected the refusal to be an UnrepresentedChoiceException'
-);
-require(!await exists(afterOutput), 'the refused action must not produce an after-capture');
+if (mode === 'spell') {
+  // Delegated wholesale to the tested rules. The work directory was emptied
+  // above, so an absent stack or resolved capture is a fact about this run.
+  failures.push(...spellGuardEvidenceErrors({
+    exitCode: probe.status,
+    output,
+    beforeCapture: await exists(beforeOutput)
+      ? JSON.parse(await readFile(beforeOutput, 'utf8'))
+      : undefined,
+    stackCaptureExists: await exists(stackOutput),
+    resolvedCaptureExists: await exists(resolvedOutput),
+    sourceName
+  }));
+} else {
+  require(
+    probe.status === REFUSED_EXIT_CODE,
+    `expected the probe to refuse with exit code ${REFUSED_EXIT_CODE}, got ${probe.status}`
+  );
+  require(
+    output.includes('PROBE_REFUSED_WITH=UnrepresentedChoiceException'),
+    'expected the refusal to be an UnrepresentedChoiceException'
+  );
+  require(!await exists(afterOutput), 'the refused action must not produce an after-capture');
+}
 
 if (mode === 'guard') {
   require(
@@ -166,7 +194,7 @@ if (mode === 'guard') {
     (action?.unrepresentedChoices ?? []).length > 0,
     'the refused land action must carry at least one unrepresented choice'
   );
-} else {
+} else if (mode === 'fault') {
   require(
     output.includes('PROBE_GATE_BYPASSED'),
     'the fault probe must deliberately bypass the pre-execution gate'
@@ -191,9 +219,14 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log(
-  mode === 'guard'
-    ? `\nA3 verified: ${sourceName} was refused before Forge was called (hook invocations 0, no after-capture).`
-    : `\nA4 verified: with the gate bypassed, payCostToPreventEffect threw UnrepresentedChoiceException `
-      + 'from AbilityUtils.handleUnlessCost instead of returning a stock-AI answer.'
-);
+const SUCCESS = {
+  guard: `\nA3 verified: ${sourceName} was refused before Forge was called `
+    + '(hook invocations 0, no after-capture).',
+  fault: '\nA4 verified: with the gate bypassed, payCostToPreventEffect threw '
+    + 'UnrepresentedChoiceException from AbilityUtils.handleUnlessCost instead of '
+    + 'returning a stock-AI answer.',
+  spell: `\nSpell guard verified: ${sourceName} was refused before reaching the stack; `
+    + 'it is still in hand, no stack or resolved capture was produced, and the refusal '
+    + 'names a choice the capture published for that same action.'
+};
+console.log(SUCCESS[mode]);

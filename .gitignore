@@ -2,4 +2,10 @@
 build/
 dist/
 logs/
+node_modules/
 *.local.json
+
+# The Forge runtime is never committed. Probes require the pinned desktop
+# distribution supplied out of band; see docs/observation-schema.md.
+forge/
+forge-*/

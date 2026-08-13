@@ -120,6 +120,114 @@ test('observation rejects duplicate action ids and reused simple mana sources', 
   ]);
 });
 
+function v2Observation() {
+  const sample = observation();
+  sample.schemaVersion = 2;
+  sample.availableActions.actions = [
+    { id: 'pass-priority', category: 'PASS_PRIORITY', executable: true, unrepresentedChoices: [] }
+  ];
+  return sample;
+}
+
+function landChoice(value = 3) {
+  return {
+    code: 'OPTIONAL_LIFE_PAYMENT',
+    decisionType: 'OPTIONAL_COST',
+    source: { forgeCardId: 'card-97', name: 'Test Land', zone: 'Hand' },
+    description: 'Enters tapped unless you pay life.',
+    timing: 'ON_ENTER',
+    optional: true,
+    amount: { unit: 'LIFE', value },
+    outcomes: ['PAY', 'DECLINE']
+  };
+}
+
+test('A8: v2 rejects executable true while a choice is unrepresented', () => {
+  const sample = v2Observation();
+  sample.availableActions.actions.push({
+    id: 'ability-1264',
+    category: 'PLAY_LAND',
+    executable: true,
+    unrepresentedChoices: [landChoice()]
+  });
+  assert.deepEqual(observationErrors(sample), [
+    'ability-1264: executable must be false because unrepresentedChoices has 1 entries'
+  ]);
+});
+
+test('A9: v2 accepts a non-executable land play that v1 rejects', () => {
+  const sample = v2Observation();
+  const action = {
+    id: 'ability-1264',
+    category: 'PLAY_LAND',
+    executable: false,
+    unrepresentedChoices: [landChoice()]
+  };
+  sample.availableActions.actions.push(action);
+  assert.deepEqual(observationErrors(sample), []);
+
+  const asV1 = structuredClone(sample);
+  asV1.schemaVersion = 1;
+  asV1.availableActions.actions[1].requiresChoiceExpansion = false;
+  assert.ok(
+    observationErrors(asV1).includes(
+      'ability-1264: a rule-valid land play must be a complete executable action'
+    ),
+    'the frozen v1 branch must still demand that every land play be executable'
+  );
+});
+
+test('v2 requires an unrepresentedChoices array on every action', () => {
+  const sample = v2Observation();
+  sample.availableActions.actions.push({
+    id: 'ability-1260',
+    category: 'CAST_SPELL',
+    executable: false
+  });
+  assert.deepEqual(observationErrors(sample), [
+    'ability-1260: unrepresentedChoices must be an array'
+  ]);
+});
+
+test('v2 rejects a free-form string choice', () => {
+  const sample = v2Observation();
+  sample.availableActions.actions.push({
+    id: 'ability-1264',
+    category: 'PLAY_LAND',
+    executable: false,
+    unrepresentedChoices: ['you may pay 3 life']
+  });
+  assert.deepEqual(observationErrors(sample), [
+    'ability-1264: unrepresentedChoices[0] must be a structured object'
+  ]);
+});
+
+test('v2 rejects a choice entry missing its required fields', () => {
+  const sample = v2Observation();
+  sample.availableActions.actions.push({
+    id: 'ability-1264',
+    category: 'PLAY_LAND',
+    executable: false,
+    unrepresentedChoices: [{ code: '', decisionType: 'VIBES', source: {}, description: '' }]
+  });
+  assert.deepEqual(observationErrors(sample), [
+    'ability-1264: unrepresentedChoices[0] requires a non-empty code',
+    'ability-1264: unrepresentedChoices[0] has an unknown decisionType: VIBES',
+    'ability-1264: unrepresentedChoices[0] requires source.forgeCardId',
+    'ability-1264: unrepresentedChoices[0] requires a non-empty description'
+  ]);
+});
+
+test('v2 keeps the information boundary that v1 enforces', () => {
+  const sample = v2Observation();
+  sample.players[1].zones.hand.cards = [{ name: 'Leaked card' }];
+  sample.players[1].zones.library.cards = [{ name: 'Leaked top card' }];
+  assert.deepEqual(observationErrors(sample), [
+    'seat 2: opponent hand identities were exposed',
+    'seat 2: library identities were exposed'
+  ]);
+});
+
 test('captured Ral priority-window example satisfies the information boundary', async () => {
   const captured = JSON.parse(await readFile(
     new URL('../examples/priority-observation-v1.json', import.meta.url),

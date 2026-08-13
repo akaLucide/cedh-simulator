@@ -16,5 +16,8 @@
     "probe:targeted": "node scripts/capture-priority-observation.mjs --cast-targeted-spell \"Lava Dart\" --mana-source \"Mountain\" --additional-mana-source \"Great Furnace\" --target-player-seat 2",
     "simulate": "node scripts/run-forge-baseline.mjs",
     "simulate:dry": "node scripts/run-forge-baseline.mjs --dry-run"
+  },
+  "devDependencies": {
+    "ajv": "8.20.0"
   }
 }

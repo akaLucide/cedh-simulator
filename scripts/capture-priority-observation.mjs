@@ -3,6 +3,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildForgeDecks } from './lib/decks.mjs';
+import { assertPinnedForgeDistribution } from './lib/forge-preflight.mjs';
 import {
   assertLandTransition,
   assertSpellTransition,
@@ -136,6 +137,8 @@ const sources = (await readdir(sourceDirectory))
   .map((file) => path.join(sourceDirectory, file));
 const decks = await buildForgeDecks(projectRoot, deckOutput);
 const jar = await findForgeJar(forgeRoot);
+const forgeBuild = await assertPinnedForgeDistribution(forgeRoot, jar);
+console.log(`Forge build verified: ${path.basename(jar)} (${forgeBuild.cardScripts})`);
 
 await mkdir(classes, { recursive: true });
 const compilation = spawnSync('java', [

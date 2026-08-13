@@ -1,15 +1,36 @@
 import assert from 'node:assert/strict';
 
-export function observationErrors(observation) {
-  const errors = [];
-  if (observation?.schemaVersion !== 1) errors.push('schemaVersion must be 1');
-  if (!Number.isInteger(observation?.viewer?.seat)) errors.push('viewer.seat must be an integer');
-  if (!Array.isArray(observation?.players)) errors.push('players must be an array');
-  if (!Array.isArray(observation?.availableActions?.actions)) {
-    errors.push('availableActions.actions must be an array');
-  }
-  if (errors.length > 0) return errors;
+const DECISION_TYPES = new Set([
+  'OPTIONAL_COST',
+  'MODE',
+  'TARGET',
+  'PAYMENT',
+  'ORDERING',
+  'VALUE',
+  'UNKNOWN'
+]);
 
+/**
+ * Dispatches on the observation's schema version.
+ *
+ * v1 is frozen: its action rules are kept exactly as they were when the v1
+ * captures in `examples/` were produced, so those artifacts stay verifiable
+ * against the contract that created them. v2 derives `executable` exclusively
+ * from `unrepresentedChoices` being empty. See docs/observation-schema.md.
+ */
+export function observationErrors(observation) {
+  return observation?.schemaVersion === 2
+    ? observationV2Errors(observation)
+    : observationV1Errors(observation);
+}
+
+/**
+ * Information-boundary checks. Deliberately shared by both versions: the rules
+ * about what a viewer may see do not change with the action contract, and a
+ * leak fix must apply to every version at once.
+ */
+function informationBoundaryErrors(observation) {
+  const errors = [];
   const viewerSeat = observation.viewer.seat;
   for (const player of observation.players) {
     const hand = player?.zones?.hand;
@@ -39,6 +60,28 @@ export function observationErrors(observation) {
       }
     }
   }
+  return errors;
+}
+
+function structuralErrors(observation, expectedVersion) {
+  const errors = [];
+  if (observation?.schemaVersion !== expectedVersion) {
+    errors.push(`schemaVersion must be ${expectedVersion}`);
+  }
+  if (!Number.isInteger(observation?.viewer?.seat)) errors.push('viewer.seat must be an integer');
+  if (!Array.isArray(observation?.players)) errors.push('players must be an array');
+  if (!Array.isArray(observation?.availableActions?.actions)) {
+    errors.push('availableActions.actions must be an array');
+  }
+  return errors;
+}
+
+/** Frozen v1 action contract. Do not add v2 rules here. */
+function observationV1Errors(observation) {
+  const errors = structuralErrors(observation, 1);
+  if (errors.length > 0) return errors;
+
+  errors.push(...informationBoundaryErrors(observation));
 
   const actions = observation.availableActions.actions;
   if (!actions.some((action) => action.category === 'PASS_PRIORITY' && action.executable === true)) {
@@ -71,6 +114,88 @@ export function observationErrors(observation) {
     if (action.category === 'PLAY_LAND'
         && (action.executable !== true || action.requiresChoiceExpansion !== false)) {
       errors.push(`${action.id}: a rule-valid land play must be a complete executable action`);
+    }
+    if (action.source?.visibility === 'hidden') {
+      errors.push(`${action.id}: an action source revealed a hidden card object`);
+    }
+  }
+  return errors;
+}
+
+/**
+ * Validates one `unrepresentedChoices` entry. Entries are structured objects so
+ * a later expander can enumerate them; free-form strings are rejected.
+ */
+function unrepresentedChoiceErrors(actionId, index, choice) {
+  const errors = [];
+  const label = `${actionId}: unrepresentedChoices[${index}]`;
+  if (typeof choice !== 'object' || choice === null || Array.isArray(choice)) {
+    errors.push(`${label} must be a structured object`);
+    return errors;
+  }
+  if (typeof choice.code !== 'string' || choice.code.length === 0) {
+    errors.push(`${label} requires a non-empty code`);
+  }
+  if (!DECISION_TYPES.has(choice.decisionType)) {
+    errors.push(`${label} has an unknown decisionType: ${choice.decisionType}`);
+  }
+  if (typeof choice.source?.forgeCardId !== 'string') {
+    errors.push(`${label} requires source.forgeCardId`);
+  }
+  if (typeof choice.description !== 'string' || choice.description.length === 0) {
+    errors.push(`${label} requires a non-empty description`);
+  }
+  return errors;
+}
+
+/**
+ * v2 action contract. `executable` carries no independent information: it is
+ * true exactly when the adapter has represented every strategically relevant
+ * choice for that action. No category — land plays included — may opt out.
+ */
+function observationV2Errors(observation) {
+  const errors = structuralErrors(observation, 2);
+  if (errors.length > 0) return errors;
+
+  errors.push(...informationBoundaryErrors(observation));
+
+  const actions = observation.availableActions.actions;
+  if (!actions.some((action) => action.category === 'PASS_PRIORITY' && action.executable === true)) {
+    errors.push('an executable PASS_PRIORITY action is required');
+  }
+
+  const actionIds = new Set();
+  for (const action of actions) {
+    if (actionIds.has(action.id)) errors.push(`${action.id}: duplicate action id`);
+    actionIds.add(action.id);
+
+    if (!Array.isArray(action.unrepresentedChoices)) {
+      // Absent means "nothing was audited", which must never read as complete.
+      errors.push(`${action.id}: unrepresentedChoices must be an array`);
+      continue;
+    }
+    action.unrepresentedChoices.forEach((choice, index) => {
+      errors.push(...unrepresentedChoiceErrors(action.id, index, choice));
+    });
+
+    const complete = action.unrepresentedChoices.length === 0;
+    if (action.executable !== complete) {
+      errors.push(
+        `${action.id}: executable must be ${complete} because unrepresentedChoices `
+        + `has ${action.unrepresentedChoices.length} entries`
+      );
+    }
+    if (Object.hasOwn(action, 'requiresChoiceExpansion')
+        && action.requiresChoiceExpansion !== !complete) {
+      errors.push(`${action.id}: requiresChoiceExpansion must be the inverse of executable`);
+    }
+
+    const mana = action.choices?.payment?.mana;
+    if (Array.isArray(mana)) {
+      const sourceIds = mana.map((entry) => entry.sourceCardId);
+      if (new Set(sourceIds).size !== sourceIds.length) {
+        errors.push(`${action.id}: a simple mana plan must not reuse a mana source`);
+      }
     }
     if (action.source?.visibility === 'hidden') {
       errors.push(`${action.id}: an action source revealed a hidden card object`);

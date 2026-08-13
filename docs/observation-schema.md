@@ -8,6 +8,10 @@ The machine-readable contract is `schemas/observation-v1.schema.json`. A real
 capture from Ral's turn-one first main phase is stored as
 `examples/priority-observation-v1.json`.
 
+> **Contract version note.** v2 is being introduced. See
+> "v1 to v2 contract change" at the end of this document for what changes, what
+> stays frozen, and which parts are not yet verified.
+
 ## Information boundary
 
 - The viewer receives the identities of cards in their own hand.
@@ -148,3 +152,104 @@ npm run probe:targeted -- `
   --seed 20260812 `
   --seat 1
 ```
+
+## v1 to v2 contract change
+
+### Why
+
+v1 derived `executable` for a land play from `SpellAbility.isLandAbility()`
+alone (`ObservationWriter.java:270-272`), and the Node validator *required*
+every `PLAY_LAND` action to be executable with no expansion
+(`scripts/lib/observations.mjs:71-74`). Both are wrong.
+
+`examples/priority-observation-v1.json:454-467` marks Shatterskull Smashing's
+land play executable. Its land face enters tapped unless the controller pays
+3 life. The action records no such decision, so stock `PlayerControllerAi`
+answers it silently. The same clause appears on Sea Gate Restoration and
+Pinnacle Monk in the same deck, on Steam Vents, and on the opponents' shock
+lands. Sink into Stupor — the one land the probe exercised — happens to be the
+only genuinely choice-free land face in the Ral list.
+
+That violates the project's own invariant: an action is executable only when
+Forge can receive it without making an unrecorded strategically relevant choice
+for the human or agent.
+
+### What v2 changes
+
+Every action carries `unrepresentedChoices`, an array of **structured objects**
+(never free-form strings):
+
+| Field | Required | Purpose |
+| --- | --- | --- |
+| `code` | yes | Names the choice **type**, not a unique instance. |
+| `decisionType` | yes | `OPTIONAL_COST`, `MODE`, `TARGET`, `PAYMENT`, `ORDERING`, `VALUE`, `UNKNOWN`. |
+| `source` | yes | `{forgeCardId, name, zone}`. `forgeCardId` is debug-only. |
+| `description` | yes | Human-readable, for the UI and logs. |
+| `timing` | no | `ON_CAST`, `ON_ENTER`, `ON_RESOLVE`, `UNKNOWN`. |
+| `optional` | no | Whether declining is legal. |
+| `amount` | no | `{unit, value}` — for example three life. |
+| `outcomes` | no | Enumeration domain when finite and known. |
+
+`executable` carries no independent information in v2. It is true exactly when
+`unrepresentedChoices` is empty. No category, land plays included, may opt out.
+
+Because an empty list now *asserts* completeness, the list is built by starting
+non-empty and removing entries only when the adapter can positively prove the
+action choice-free — never by starting empty and adding known problems:
+
+| Action family | `unrepresentedChoices` | `executable` |
+| --- | --- | --- |
+| `PASS_PRIORITY` | empty | true |
+| Land play proven choice-free | empty | true |
+| Land play with choices | one or more entries | false |
+| Unexpanded `CAST_SPELL` candidate | one or more entries | false |
+| Unexpanded activated or mana ability | one or more entries | false |
+| Adapter-expanded complete cast | empty | true |
+| Anything not positively audited | `UNSUPPORTED_ACTION_EXPANSION` | false |
+
+### Limit on expansion until M2
+
+`code` names a type, so two choices of the same kind on one action share it. A
+recorded answer therefore cannot be keyed by `code` alone. Until M2 supplies
+canonical per-instance choice identity, expansion is only sound for actions
+carrying **exactly one** entry; multi-entry actions stay non-executable.
+
+### What stays frozen
+
+- No `examples/*-v1.json` is regenerated, edited, or deleted.
+- `schemas/observation-v1.schema.json` is not redefined.
+- `observationErrors()` dispatches on `schemaVersion`. The v1 action rules are
+  kept as they were when the v1 captures were produced, so those artifacts stay
+  verifiable against the contract that created them.
+- `test/evidence.test.mjs` pins the SHA-256 of all nine v1 captures and the v1
+  schema.
+
+New behaviour goes into `*-v2.json` captures instead.
+
+### Defect found when the schema was first executed
+
+`schemas/observation-v1.schema.json` was referenced only in prose and never
+compiled. Wiring it into the tests immediately exposed an inconsistency it
+should have caught long ago: `examples/spell-action-stack-v1.json` (the Mox
+Amber checkpoint) has a stack item with no `targets` or `payment`, while the v1
+schema marks both required for `stackItem`. That capture predates the fields,
+which were added for the Lava Dart checkpoint.
+
+Both sides are deliberately frozen, so
+`test/schema.test.mjs` records the exact known exception rather than hiding it.
+Any change on either side fails the test.
+
+### Not yet verified
+
+The following require the pinned Forge distribution
+(`2.0.15-SNAPSHOT-08.13`, desktop jar SHA-256
+`c93f367fb9799852230c6f878cf484fa0df031ddc597fd17d12a248577691f16`) and are
+**not** verified at the time of writing:
+
+- which `PlayerController` method the pinned build routes the optional life
+  payment through. This must be discovered by instrumented probe, not guessed,
+  before the decision hook of last resort can be written against it;
+- the `ActionChoiceAudit` implementation that derives choices from Forge
+  replacement-effect, cost, and ability data;
+- all `*-v2.json` captures; and
+- the positive path of the Forge preflight.

@@ -7,5 +7,7 @@ node_modules/
 
 # The Forge runtime is never committed. Probes require the pinned desktop
 # distribution supplied out of band; see docs/observation-schema.md.
-forge/
-forge-*/
+# Anchored to the repository root so a nested source directory such as
+# spike/src/main/java/forge/ is never ignored by accident.
+/forge/
+/forge-*/

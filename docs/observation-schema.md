@@ -52,10 +52,23 @@ Ral has no mana source in play; neither is represented as an executable action.
 The controlled Lava Dart fixture demonstrates general expansion. With an
 untapped Mountain and Great Furnace, the expander emits eight actions: every
 combination of four legal player targets and two legal red sources. Each action
-has a unique stable id, one target, one payment source, and the exact mana
-ability id. `actionContext` identifies the selected seat-2/Mountain action.
+has one target, one payment source, the exact mana ability id, and an id that is
+unique **within that observation**. `actionContext` identifies the selected
+seat-2/Mountain action.
 Once cast, the public stack item records Forge's actual targets and actual paid
 mana, so a validator can reject a plan that the engine executed differently.
+
+Those ids are **not stable across runs**, and nothing may key on them. They are
+built from Forge object ids, which are assigned by a global counter rather than
+derived from game state. Two committed captures show the drift directly:
+`examples/land-action-before-v1.json` and `examples/spell-action-before-v1.json`
+record the same seed (`20260812`) in the same turn-one first main phase and are
+byte-identical apart from two ids — Vexing Bauble's cast is `ability-1289` in
+one and `ability-1282` in the other, and Ral's commander cast is `ability-1297`
+against `ability-1283`. Uniqueness within one observation is therefore all these
+ids provide. Canonical, run-stable identity is deferred to M2, which must also
+cover duplicate objects, tokens, copies, and repeated abilities; no replay or
+undo system may key on Forge ids.
 
 Simple-spell expansion version 1 supports:
 

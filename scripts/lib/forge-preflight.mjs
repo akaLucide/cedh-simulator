@@ -40,13 +40,12 @@ async function exists(target) {
 }
 
 /**
- * Refuses to run against anything other than the pinned build.
+ * Verifies the jar is byte-identical to the pinned build.
  *
- * Deliberately minimal for this milestone: it proves the runtime is the one the
- * captures were verified against, and nothing more. Recording the version into
- * result files, and fixing the unsound lexicographic jar selection, are M4.
+ * Exported so it can be tested on its own. Never relax this: captured evidence
+ * is only comparable across identical Forge builds.
  */
-export async function assertPinnedForgeDistribution(forgeRoot, jarPath) {
+export async function assertPinnedForgeJar(jarPath) {
   const actual = await sha256OfFile(jarPath);
   if (actual !== PINNED_FORGE.desktopJarSha256) {
     throw new Error(
@@ -57,17 +56,37 @@ export async function assertPinnedForgeDistribution(forgeRoot, jarPath) {
       + 'Captured evidence is only comparable across identical Forge builds.'
     );
   }
+  return actual;
+}
 
-  const found = [];
+/**
+ * Verifies the root is a full desktop distribution rather than a bare jar.
+ *
+ * Exported separately from the hash gate so each gate can be proven on its own.
+ * Testing this through `assertPinnedForgeDistribution` alone is not possible
+ * without a jar matching the pinned hash: the hash gate would fire first and the
+ * test would pass without ever reaching this check.
+ */
+export async function assertForgeCardScriptResources(forgeRoot) {
   for (const location of CARD_SCRIPT_LOCATIONS) {
-    if (await exists(path.join(forgeRoot, location))) found.push(location);
+    if (await exists(path.join(forgeRoot, location))) return location;
   }
-  if (found.length === 0) {
-    throw new Error(
-      `Refusing to run: ${forgeRoot} has the pinned jar but no card-script resources.\n`
-      + `  looked for: ${CARD_SCRIPT_LOCATIONS.join(', ')}\n`
-      + 'The probes need the full desktop distribution, not just the jar.'
-    );
-  }
-  return { jarSha256: actual, cardScripts: found[0] };
+  throw new Error(
+    `Refusing to run: ${forgeRoot} has the pinned jar but no card-script resources.\n`
+    + `  looked for: ${CARD_SCRIPT_LOCATIONS.join(', ')}\n`
+    + 'The probes need the full desktop distribution, not just the jar.'
+  );
+}
+
+/**
+ * Refuses to run against anything other than the pinned build.
+ *
+ * Deliberately minimal for this milestone: it proves the runtime is the one the
+ * captures were verified against, and nothing more. Recording the version into
+ * result files, and fixing the unsound lexicographic jar selection, are M4.
+ */
+export async function assertPinnedForgeDistribution(forgeRoot, jarPath) {
+  const jarSha256 = await assertPinnedForgeJar(jarPath);
+  const cardScripts = await assertForgeCardScriptResources(forgeRoot);
+  return { jarSha256, cardScripts };
 }

@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
   PINNED_FORGE,
+  assertForgeCardScriptResources,
   assertPinnedForgeDistribution,
   sha256OfFile
 } from '../scripts/lib/forge-preflight.mjs';
@@ -38,11 +39,52 @@ test('A14: the refusal reports the actual hash it found', async () => {
   );
 });
 
-test('a bare jar without card scripts is refused even if it hashes correctly', async () => {
-  // Exercises the second gate by asserting the message names it, without
-  // needing a jar that actually matches the pinned hash.
-  const { root, jar } = await fakeDistribution({ cardScripts: false });
-  await assert.rejects(() => assertPinnedForgeDistribution(root, jar));
+/**
+ * The resource gate is tested through its own export rather than through
+ * `assertPinnedForgeDistribution`. Going through the combined function would
+ * require a jar matching the pinned SHA-256, which is not reproducible here;
+ * the hash gate would fire first and the test would pass without ever reaching
+ * the resource check.
+ */
+test('a distribution root with no card-script resources is refused', async () => {
+  const { root } = await fakeDistribution({ cardScripts: false });
+  await assert.rejects(
+    () => assertForgeCardScriptResources(root),
+    (error) => {
+      assert.match(error.message, /no card-script resources/);
+      assert.match(error.message, /res\/cardsfolder/);
+      assert.match(error.message, /not just the jar/);
+      return true;
+    }
+  );
+});
+
+test('each accepted card-script location satisfies the resource gate', async () => {
+  for (const location of ['res/cardsfolder', 'forge-gui/res/cardsfolder']) {
+    const root = await mkdtemp(path.join(tmpdir(), 'forge-resources-'));
+    await mkdir(path.join(root, location), { recursive: true });
+    assert.equal(await assertForgeCardScriptResources(root), location);
+  }
+});
+
+test('a zipped card-script bundle satisfies the resource gate', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'forge-resources-zip-'));
+  await mkdir(path.join(root, 'res'), { recursive: true });
+  await writeFile(path.join(root, 'res/cardsfolder.zip'), 'not a real zip');
+  assert.equal(await assertForgeCardScriptResources(root), 'res/cardsfolder.zip');
+});
+
+test('the combined preflight still applies the hash gate first', async () => {
+  // Card scripts present, jar wrong: the hash error must be the one reported,
+  // proving the SHA-256 gate is not bypassed by a well-formed distribution.
+  const { root, jar } = await fakeDistribution({ cardScripts: true });
+  await assert.rejects(
+    () => assertPinnedForgeDistribution(root, jar),
+    (error) => {
+      assert.match(error.message, /is not the pinned Forge build/);
+      return true;
+    }
+  );
 });
 
 test('the pinned build constants are the ones this milestone verified against', () => {

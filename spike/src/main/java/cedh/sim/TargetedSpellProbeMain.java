@@ -90,6 +90,11 @@ public final class TargetedSpellProbeMain {
         List<String> fixtureSources = new ArrayList<>();
         fixtureSources.add(options.manaSourceName);
         fixtureSources.addAll(options.additionalManaSources);
+        ObservationWriter.setStagedFixture(
+                String.join(", ", fixtureSources),
+                ZoneType.Library.name(),
+                "--mana-source " + String.join(" --additional-mana-source ", fixtureSources)
+        );
         for (String sourceName : fixtureSources) {
             Card manaSource = actor.getCardsIn(ZoneType.Library).stream()
                     .filter(card -> card.getName().equals(sourceName))

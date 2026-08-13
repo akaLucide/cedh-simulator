@@ -35,6 +35,7 @@ function v2Observation() {
 
   return {
     schemaVersion: 2,
+    fixture: { kind: 'natural' },
     viewer: { seat: 1, id: 0, name: 'Seat(1)' },
     game: {
       turn: 1,
@@ -177,4 +178,36 @@ test('captured v1 examples match their v1 schema, with one recorded exception', 
     if (errors.length > 0) actual[file] = errors;
   }
   assert.deepEqual(actual, V1_CAPTURES_FAILING_THEIR_OWN_SCHEMA);
+});
+
+test('the schema requires a fixture declaration', async () => {
+  const sample = v2Observation();
+  delete sample.fixture;
+  const errors = await schemaErrors(sample);
+  assert.ok(errors.some((error) => error.includes('fixture')), errors.join('; '));
+});
+
+test('the schema accepts a fully described staged fixture', async () => {
+  const sample = v2Observation();
+  sample.fixture = {
+    kind: 'staged',
+    stagedCard: 'Test Land',
+    sourceZone: 'Library',
+    cliArgument: '--stage-into-hand Test Land'
+  };
+  assert.deepEqual(await schemaErrors(sample), []);
+});
+
+test('the schema rejects a staged fixture that hides what it staged', async () => {
+  const sample = v2Observation();
+  sample.fixture = { kind: 'staged', stagedCard: 'Test Land' };
+  const errors = await schemaErrors(sample);
+  assert.ok(errors.length > 0, 'a staged capture must name its source zone and CLI argument');
+});
+
+test('the schema rejects staged details on a natural fixture', async () => {
+  const sample = v2Observation();
+  sample.fixture = { kind: 'natural', stagedCard: 'Test Land' };
+  const errors = await schemaErrors(sample);
+  assert.ok(errors.length > 0, 'a natural capture must not carry staged-card details');
 });

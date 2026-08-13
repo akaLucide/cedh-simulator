@@ -6,6 +6,7 @@ import { buildForgeDecks } from './lib/decks.mjs';
 import { assertPinnedForgeDistribution } from './lib/forge-preflight.mjs';
 import {
   assertLandTransition,
+  assertReproducibleBundles,
   assertSpellTransition,
   assertTargetedSpellTransition,
   assertValidObservation
@@ -81,8 +82,11 @@ if (!forgeRootOption) {
 const seed = Number(option('--seed', '1'));
 const seat = Number(option('--seat', '1'));
 const timeoutSeconds = Number(option('--timeout', '90'));
+const repeat = Number(option('--repeat', '1'));
 const phase = option('--phase', 'MAIN1').toUpperCase();
 const landSource = option('--play-land');
+const stageIntoHand = option('--stage-into-hand');
+const auditOnly = process.argv.includes('--audit-only');
 const spellSource = option('--cast-spell');
 const targetedSpellSource = option('--cast-targeted-spell');
 const manaSource = option('--mana-source');
@@ -90,6 +94,9 @@ const additionalManaSources = options('--additional-mana-source');
 const targetPlayerSeat = Number(option('--target-player-seat', '2'));
 if ([landSource, spellSource, targetedSpellSource].filter(Boolean).length > 1) {
   throw new Error('Choose only one action probe mode');
+}
+if (auditOnly && (landSource || spellSource || targetedSpellSource)) {
+  throw new Error('--audit-only never executes an action, so it cannot be combined with an action probe');
 }
 if (targetedSpellSource && !manaSource) {
   throw new Error('--cast-targeted-spell requires --mana-source');
@@ -104,6 +111,9 @@ if (!Number.isSafeInteger(targetPlayerSeat)
 }
 if (!Number.isSafeInteger(timeoutSeconds) || timeoutSeconds < 1) {
   throw new Error('--timeout must be a positive integer');
+}
+if (!Number.isSafeInteger(repeat) || repeat < 1) {
+  throw new Error('--repeat must be a positive integer');
 }
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -163,51 +173,124 @@ const gameArgs = [
   '--seed', String(seed),
   '--phase', phase
 ];
-const args = landSource
-  ? [
+const stagingArgs = stageIntoHand ? ['--stage-into-hand', stageIntoHand] : [];
+
+/** Logical capture names for the selected mode, in the order they are produced. */
+const captureOrder = auditOnly
+  ? ['before']
+  : landSource
+    ? ['before', 'after']
+    : (spellSource || targetedSpellSource)
+      ? ['before', 'stack', 'resolved']
+      : ['output'];
+
+const basePaths = {
+  before: beforeOutput,
+  after: afterOutput,
+  stack: stackOutput,
+  resolved: resolvedOutput,
+  output
+};
+
+/** Sends a repeat run to its own directory so run 1's artifacts stay intact. */
+function pathsForRun(runIndex) {
+  if (runIndex === 0) return basePaths;
+  const shadow = path.join(projectRoot, `build/reproducibility-run-${runIndex + 1}`);
+  return Object.fromEntries(
+    Object.entries(basePaths).map(([name, target]) => [name, path.join(shadow, path.basename(target))])
+  );
+}
+
+function probeArgs(paths) {
+  if (auditOnly) {
+    return [
+      ...commonArgs,
+      'cedh.sim.LandActionProbeMain',
+      ...gameArgs,
+      '--audit-only',
+      ...stagingArgs,
+      '--before', paths.before
+    ];
+  }
+  if (landSource) {
+    return [
       ...commonArgs,
       'cedh.sim.LandActionProbeMain',
       ...gameArgs,
       '--source', landSource,
-      '--before', beforeOutput,
-      '--after', afterOutput
-    ]
-  : spellSource
-    ? [
-        ...commonArgs,
-        'cedh.sim.SpellActionProbeMain',
-        ...gameArgs,
-        '--source', spellSource,
-        '--before', beforeOutput,
-        '--stack', stackOutput,
-        '--resolved', resolvedOutput
-      ]
-  : targetedSpellSource
-    ? [
-        ...commonArgs,
-        'cedh.sim.TargetedSpellProbeMain',
-        ...gameArgs,
-        '--source', targetedSpellSource,
-        '--mana-source', manaSource,
-        ...additionalManaSources.flatMap((source) => ['--additional-mana-source', source]),
-        '--target-player-seat', String(targetPlayerSeat),
-        '--before', beforeOutput,
-        '--stack', stackOutput,
-        '--resolved', resolvedOutput
-      ]
-  : [
-      ...commonArgs,
-      'cedh.sim.PriorityObservationMain',
-      ...gameArgs,
-      '--output', output
+      ...stagingArgs,
+      '--before', paths.before,
+      '--after', paths.after
     ];
+  }
+  if (spellSource) {
+    return [
+      ...commonArgs,
+      'cedh.sim.SpellActionProbeMain',
+      ...gameArgs,
+      '--source', spellSource,
+      '--before', paths.before,
+      '--stack', paths.stack,
+      '--resolved', paths.resolved
+    ];
+  }
+  if (targetedSpellSource) {
+    return [
+      ...commonArgs,
+      'cedh.sim.TargetedSpellProbeMain',
+      ...gameArgs,
+      '--source', targetedSpellSource,
+      '--mana-source', manaSource,
+      ...additionalManaSources.flatMap((source) => ['--additional-mana-source', source]),
+      '--target-player-seat', String(targetPlayerSeat),
+      '--before', paths.before,
+      '--stack', paths.stack,
+      '--resolved', paths.resolved
+    ];
+  }
+  return [
+    ...commonArgs,
+    'cedh.sim.PriorityObservationMain',
+    ...gameArgs,
+    '--output', paths.output
+  ];
+}
 
-await runWithTimeout('java', args, { cwd: forgeRoot, timeoutMs: timeoutSeconds * 1000 });
-if (landSource) {
-  const [before, after] = await Promise.all([
-    readFile(beforeOutput, 'utf8').then(JSON.parse),
-    readFile(afterOutput, 'utf8').then(JSON.parse)
-  ]);
+async function runProbe(runIndex) {
+  const paths = pathsForRun(runIndex);
+  await runWithTimeout('java', probeArgs(paths), { cwd: forgeRoot, timeoutMs: timeoutSeconds * 1000 });
+  const captures = [];
+  for (const name of captureOrder) {
+    captures.push(JSON.parse(await readFile(paths[name], 'utf8')));
+  }
+  captures.forEach(assertValidObservation);
+  return captures;
+}
+
+const captures = await runProbe(0);
+const [primary] = captures;
+
+if (repeat > 1) {
+  // Two fresh JVMs, each validated on its own, then compared through the
+  // semantic projection rather than byte-for-byte: Forge object ids are
+  // debug-only and drift between runs by design.
+  for (let runIndex = 1; runIndex < repeat; runIndex++) {
+    assertReproducibleBundles(captures, await runProbe(runIndex), `run 1 vs run ${runIndex + 1}`);
+  }
+  console.log(`Reproducible across ${repeat} fresh JVMs (semantic projection over ${captureOrder.length} capture(s))`);
+}
+
+if (auditOnly) {
+  const landActions = primary.availableActions.actions.filter((action) => action.category === 'PLAY_LAND');
+  console.log(
+    `Audited ${landActions.length} land action(s) in a ${primary.fixture.kind} capture; `
+    + landActions
+      .map((action) => `${action.source?.name}: executable=${action.executable} `
+        + `choices=${action.unrepresentedChoices.map((choice) => choice.code).join(',') || 'none'}`)
+      .join('; ')
+  );
+} else if (landSource) {
+  const [before, after] = captures;
   assertLandTransition(before, after, landSource);
   const movedCardId = before.players
     .find((player) => player.seat === seat)
@@ -215,16 +298,15 @@ if (landSource) {
   const resultingCard = after.players
     .find((player) => player.seat === seat)
     .zones.battlefield.cards.find((card) => card.id === movedCardId);
+  if (!resultingCard) {
+    throw new Error(`The raw card id ${movedCardId} that left hand is not on the battlefield`);
+  }
   console.log(
-    `Validated land transition: ${landSource} -> ${resultingCard.name}; ` +
-    `tapped=${resultingCard.tapped}`
+    `Validated land transition (${before.fixture.kind} fixture): ${landSource} -> ${resultingCard.name}; `
+    + `same raw card id ${movedCardId}; tapped=${resultingCard.tapped}`
   );
 } else if (spellSource || targetedSpellSource) {
-  const [before, onStack, resolved] = await Promise.all([
-    readFile(beforeOutput, 'utf8').then(JSON.parse),
-    readFile(stackOutput, 'utf8').then(JSON.parse),
-    readFile(resolvedOutput, 'utf8').then(JSON.parse)
-  ]);
+  const [before, onStack, resolved] = captures;
   if (targetedSpellSource) {
     assertTargetedSpellTransition(before, onStack, resolved, {
       sourceName: targetedSpellSource,
@@ -233,22 +315,21 @@ if (landSource) {
       alternativeManaSourceName: additionalManaSources[0]
     });
     console.log(
-      `Validated targeted spell transition: ${targetedSpellSource}; ` +
-      `paid by ${manaSource}; target seat ${targetPlayerSeat}; damage=1; resolved to graveyard`
+      `Validated targeted spell transition: ${targetedSpellSource}; `
+      + `paid by ${manaSource}; target seat ${targetPlayerSeat}; damage=1; resolved to graveyard`
     );
   } else {
     assertSpellTransition(before, onStack, resolved, spellSource);
     console.log(
-      `Validated spell transition: ${spellSource}; stack entries ` +
-      `${before.game.stack.length} -> ${onStack.game.stack.length} -> ${resolved.game.stack.length}; ` +
-      `resolved to battlefield`
+      `Validated spell transition: ${spellSource}; stack entries `
+      + `${before.game.stack.length} -> ${onStack.game.stack.length} -> ${resolved.game.stack.length}; `
+      + 'resolved to battlefield'
     );
   }
 } else {
-  const observation = JSON.parse(await readFile(output, 'utf8'));
-  assertValidObservation(observation);
   console.log(
-    `Validated schema v${observation.schemaVersion}: turn ${observation.game.turn} ` +
-    `${observation.game.phase}, seat ${seat}, ${observation.availableActions.actions.length} actions/candidates`
+    `Validated schema v${primary.schemaVersion} (${primary.fixture.kind} fixture): `
+    + `turn ${primary.game.turn} ${primary.game.phase}, seat ${seat}, `
+    + `${primary.availableActions.actions.length} actions/candidates`
   );
 }

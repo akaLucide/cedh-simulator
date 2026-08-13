@@ -31,6 +31,7 @@ public final class PriorityObservationMain {
         System.setProperty("sun.java2d.d3d", "false");
         GuiBase.setInterface(new HeadlessGuiBase());
         FModel.initialize(null, null);
+        ObservationWriter.setNaturalFixture();
         MyRandom.setRandom(new Random(options.seed));
 
         AtomicBoolean captured = new AtomicBoolean(false);

@@ -148,6 +148,40 @@ function unrepresentedChoiceErrors(actionId, index, choice) {
   return errors;
 }
 
+const STAGED_FIXTURE_FIELDS = ['stagedCard', 'sourceZone', 'cliArgument'];
+
+/**
+ * Validates how the captured state was reached.
+ *
+ * A staged capture arranged its own starting state, so it proves things about
+ * the adapter rather than about a natural game. Recording that is not optional:
+ * an unmarked staged capture would invite exactly the comparison it must not be
+ * used for.
+ */
+function fixtureErrors(fixture) {
+  if (typeof fixture !== 'object' || fixture === null || Array.isArray(fixture)) {
+    return ['fixture must be a structured object'];
+  }
+  const errors = [];
+  if (fixture.kind !== 'natural' && fixture.kind !== 'staged') {
+    errors.push(`fixture.kind must be natural or staged, not ${fixture.kind}`);
+  }
+  if (fixture.kind === 'staged') {
+    for (const field of STAGED_FIXTURE_FIELDS) {
+      if (typeof fixture[field] !== 'string' || fixture[field].length === 0) {
+        errors.push(`fixture.${field} is required for a staged capture`);
+      }
+    }
+  } else if (fixture.kind === 'natural') {
+    for (const field of STAGED_FIXTURE_FIELDS) {
+      if (Object.hasOwn(fixture, field)) {
+        errors.push(`fixture.${field} must not appear on a natural capture`);
+      }
+    }
+  }
+  return errors;
+}
+
 /**
  * v2 action contract. `executable` carries no independent information: it is
  * true exactly when the adapter has represented every strategically relevant
@@ -158,6 +192,7 @@ function observationV2Errors(observation) {
   if (errors.length > 0) return errors;
 
   errors.push(...informationBoundaryErrors(observation));
+  errors.push(...fixtureErrors(observation.fixture));
 
   const actions = observation.availableActions.actions;
   if (!actions.some((action) => action.category === 'PASS_PRIORITY' && action.executable === true)) {
@@ -207,6 +242,92 @@ function observationV2Errors(observation) {
 export function assertValidObservation(observation) {
   assert.deepEqual(observationErrors(observation), []);
   return observation;
+}
+
+/** Forge id namespaces. Debug-only: assigned by a global counter, not by state. */
+const ID_NAMESPACES = ['card', 'ability', 'stack'];
+
+/**
+ * Canonicalizes Forge's debug-only object ids across an ordered capture bundle.
+ *
+ * Two fresh JVMs replaying the same seed produce the same game but not the same
+ * ids — Forge assigns them from a global counter, so they drift with unrelated
+ * allocation. Byte comparison would therefore fail for reasons the v2 contract
+ * has already declared meaningless.
+ *
+ * Ids are **rewritten, not removed**. Deleting them would also delete the proof
+ * that the card which left hand is the card that reached the battlefield, which
+ * is the very thing the land probes exist to demonstrate. Each distinct raw id
+ * maps to one token, so identity relationships survive normalization and a
+ * rewired relationship still compares unequal.
+ *
+ * One map per namespace is shared across every capture in the bundle, because a
+ * card keeps its id across the before/after pair of a single run. Tokens are
+ * assigned by first appearance in a deterministic traversal: capture order, then
+ * object key insertion order, then array index.
+ *
+ * This is **not** canonical cross-run identity. Nothing here survives into a
+ * replay or undo system; stable identity is M2.
+ */
+export function normalizeCaptureBundle(captures) {
+  if (!Array.isArray(captures)) throw new TypeError('normalizeCaptureBundle expects an array');
+  const maps = new Map(ID_NAMESPACES.map((namespace) => [namespace, new Map()]));
+
+  const token = (namespace, rawId) => {
+    const known = maps.get(namespace);
+    if (!known.has(rawId)) known.set(rawId, `#${known.size + 1}`);
+    return known.get(rawId);
+  };
+
+  const rewrite = (text) => text
+    // Plain field values and the hyphenated segments of composite action ids:
+    // "card-97", "ability-1273", "stack-2",
+    // "cast-card-75-ability-1273-target-player-0-...".
+    .replace(/\b(card|ability|stack)-(\d+)/g, (_, namespace, rawId) =>
+      `${namespace}-${token(namespace, rawId)}`)
+    // The compacted payment segment of a composite action id, which carries no
+    // hyphens: "-pay-card98a274r".
+    .replace(/\bcard(\d+)a(\d+)/g, (_, cardId, abilityId) =>
+      `card${token('card', cardId)}a${token('ability', abilityId)}`)
+    // Raw ids Forge embeds in prose, e.g. a stack description reading
+    // "Lava Dart (75) - Lava Dart (75) deals 1 damage to ...". Only ids already
+    // seen as real card objects are rewritten, so ordinary numbers in rules text
+    // are left alone.
+    .replace(/\((\d+)\)/g, (match, rawId) =>
+      maps.get('card').has(rawId) ? `(${maps.get('card').get(rawId)})` : match);
+
+  const walk = (value) => {
+    if (typeof value === 'string') return rewrite(value);
+    if (Array.isArray(value)) return value.map(walk);
+    if (value && typeof value === 'object') {
+      const result = {};
+      for (const [key, item] of Object.entries(value)) result[key] = walk(item);
+      return result;
+    }
+    // Numbers, booleans and null pass through untouched. That deliberately
+    // protects meaningful state: seats, life, counts, and `targets[].id`, which
+    // is a player index rather than a Forge object id.
+    return value;
+  };
+
+  return captures.map(walk);
+}
+
+/**
+ * Compares two runs of the same probe through the semantic projection.
+ *
+ * Each capture must already have been validated on its own; this proves the two
+ * runs describe the same game, not that either is well formed.
+ */
+export function assertReproducibleBundles(first, second, label = 'capture bundle') {
+  if (first.length !== second.length) {
+    assert.fail(`${label}: run 1 produced ${first.length} captures, run 2 produced ${second.length}`);
+  }
+  assert.deepEqual(
+    normalizeCaptureBundle(first),
+    normalizeCaptureBundle(second),
+    `${label}: the two runs differ beyond Forge's debug-only object ids`
+  );
 }
 
 export function landTransitionErrors(before, after, sourceName) {

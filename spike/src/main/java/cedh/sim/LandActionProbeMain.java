@@ -21,16 +21,49 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Proves that one adapter-selected action can execute and return priority. */
 public final class LandActionProbeMain {
+    /** Exit code for the expected typed refusal, distinct from an ordinary crash. */
+    static final int REFUSED_EXIT_CODE = 3;
+
     private LandActionProbeMain() {
     }
 
+    /** Builds the lobby player for one seat, so probes can vary the controller. */
+    interface LobbyFactory {
+        LandActionProbeLobbyPlayerAi create(
+                String name,
+                boolean targetSeat,
+                int seat,
+                String targetPhase,
+                String sourceName,
+                String stageIntoHand,
+                boolean auditOnly,
+                Path beforeOutput,
+                Path afterOutput,
+                AtomicBoolean actionIssued,
+                AtomicBoolean completed
+        );
+    }
+
     public static void main(String[] args) {
-        Arguments options = Arguments.parse(args);
+        run(Arguments.parse(args), LandActionProbeLobbyPlayerAi::new);
+    }
+
+    static void run(Arguments options, LobbyFactory lobbyFactory) {
         System.setProperty("java.util.Arrays.useLegacyMergeSort", "true");
         System.setProperty("sun.java2d.d3d", "false");
         GuiBase.setInterface(new HeadlessGuiBase());
         FModel.initialize(null, null);
         MyRandom.setRandom(new Random(options.seed));
+
+        if (options.stageIntoHand == null) {
+            ObservationWriter.setNaturalFixture();
+        } else {
+            ObservationWriter.setStagedFixture(
+                    options.stageIntoHand,
+                    "Library",
+                    "--stage-into-hand " + options.stageIntoHand
+            );
+        }
 
         AtomicBoolean actionIssued = new AtomicBoolean(false);
         AtomicBoolean completed = new AtomicBoolean(false);
@@ -42,26 +75,49 @@ public final class LandActionProbeMain {
                 throw new IllegalArgumentException("Could not load deck: " + deckPath);
             }
             int seat = index + 1;
-            LandActionProbeLobbyPlayerAi lobby = new LandActionProbeLobbyPlayerAi(
+            players.add(RegisteredPlayer.forCommander(deck).setPlayer(lobbyFactory.create(
                     "Seat(" + seat + ")-" + deck.getName(),
                     seat == options.targetSeat,
                     seat,
                     options.targetPhase,
                     options.sourceName,
+                    options.stageIntoHand,
+                    options.auditOnly,
                     options.beforeOutput,
                     options.afterOutput,
                     actionIssued,
                     completed
-            );
-            players.add(RegisteredPlayer.forCommander(deck).setPlayer(lobby));
+            )));
         }
 
         GameRules rules = new GameRules(GameType.Commander);
         rules.setAppliedVariants(EnumSet.of(GameType.Commander));
         Match match = new Match(rules, players, "Land action probe");
         Game game = match.createGame();
-        match.startGame(game);
+        try {
+            match.startGame(game);
+        } catch (RuntimeException error) {
+            UnrepresentedChoiceException refusal = refusalIn(error);
+            if (refusal == null) {
+                throw error;
+            }
+            // The typed refusal is the probe's expected outcome in guard mode; the
+            // wrapper script decides whether that counts as a pass.
+            reportHookInvocations();
+            System.out.println("PROBE_REFUSED_WITH=" + refusal.getClass().getSimpleName());
+            refusal.printStackTrace(System.out);
+            System.out.flush();
+            System.exit(REFUSED_EXIT_CODE);
+        }
 
+        reportHookInvocations();
+        if (options.auditOnly) {
+            if (!Files.isRegularFile(options.beforeOutput)) {
+                throw new IllegalStateException("The audit-only probe did not write its capture");
+            }
+            System.out.println("Land action audit: " + options.beforeOutput.toAbsolutePath());
+            return;
+        }
         if (!completed.get()
                 || !Files.isRegularFile(options.beforeOutput)
                 || !Files.isRegularFile(options.afterOutput)) {
@@ -71,7 +127,26 @@ public final class LandActionProbeMain {
         System.out.println("Land action after: " + options.afterOutput.toAbsolutePath());
     }
 
-    private static final class Arguments {
+    private static void reportHookInvocations() {
+        System.out.println(
+                "PROBE_HOOK_INVOCATIONS=" + LandActionProbeControllerAi.forgeDecisionHookInvocations()
+        );
+    }
+
+    /** Forge may wrap a controller exception, so unwrap before classifying it. */
+    private static UnrepresentedChoiceException refusalIn(Throwable error) {
+        for (Throwable current = error; current != null; current = current.getCause()) {
+            if (current instanceof UnrepresentedChoiceException refusal) {
+                return refusal;
+            }
+            if (current.getCause() == current) {
+                break;
+            }
+        }
+        return null;
+    }
+
+    static final class Arguments {
         private Path deckDirectory;
         private final List<String> decks = new ArrayList<>();
         private Path beforeOutput;
@@ -80,8 +155,10 @@ public final class LandActionProbeMain {
         private long seed = 1;
         private String targetPhase = "MAIN1";
         private String sourceName;
+        private String stageIntoHand;
+        private boolean auditOnly;
 
-        private static Arguments parse(String[] args) {
+        static Arguments parse(String[] args) {
             Arguments result = new Arguments();
             for (int index = 0; index < args.length; index++) {
                 String argument = args[index];
@@ -94,17 +171,19 @@ public final class LandActionProbeMain {
                     case "--seed" -> result.seed = Long.parseLong(value(args, ++index, argument));
                     case "--phase" -> result.targetPhase = value(args, ++index, argument).toUpperCase();
                     case "--source" -> result.sourceName = value(args, ++index, argument);
+                    case "--stage-into-hand" -> result.stageIntoHand = value(args, ++index, argument);
+                    case "--audit-only" -> result.auditOnly = true;
                     default -> throw new IllegalArgumentException("Unknown argument: " + argument);
                 }
             }
             if (result.deckDirectory == null
                     || result.beforeOutput == null
-                    || result.afterOutput == null
-                    || result.sourceName == null
-                    || result.decks.size() < 2) {
+                    || result.decks.size() < 2
+                    || (!result.auditOnly && (result.afterOutput == null || result.sourceName == null))) {
                 throw new IllegalArgumentException(
                         "Usage: --deck-directory <path> --deck <file> [--deck <file> ...] "
-                                + "--before <json> --after <json> --source <card>"
+                                + "--before <json> [--after <json> --source <card>] "
+                                + "[--stage-into-hand <card>] [--audit-only]"
                 );
             }
             if (result.targetSeat < 1 || result.targetSeat > result.decks.size()) {

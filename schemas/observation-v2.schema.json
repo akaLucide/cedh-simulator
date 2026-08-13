@@ -1,0 +1,295 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.cedh-simulator/schemas/observation-v2.schema.json",
+  "title": "cEDH Simulator Player-Scoped Observation v2",
+  "description": "Adds structured unrepresentedChoices to every action and derives `executable` exclusively from that list being empty. See docs/observation-schema.md for the v1 to v2 contract change.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "fixture",
+    "viewer",
+    "game",
+    "players",
+    "availableActions",
+    "informationPolicy"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 2
+    },
+    "fixture": {
+      "$ref": "#/$defs/fixture"
+    },
+    "viewer": {
+      "$ref": "#/$defs/playerReference"
+    },
+    "game": {
+      "type": "object",
+      "required": ["turn", "phase", "activePlayer", "priorityPlayer", "stack"],
+      "properties": {
+        "turn": { "type": "integer", "minimum": 1 },
+        "phase": { "type": ["string", "null"] },
+        "activePlayer": { "$ref": "#/$defs/playerReference" },
+        "priorityPlayer": { "$ref": "#/$defs/playerReference" },
+        "stack": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/stackItem" }
+        }
+      }
+    },
+    "players": {
+      "type": "array",
+      "minItems": 2,
+      "items": { "$ref": "#/$defs/player" }
+    },
+    "availableActions": {
+      "type": "object",
+      "required": ["enumerationVersion", "actions", "completeness", "limitations"],
+      "properties": {
+        "enumerationVersion": { "const": 2 },
+        "actions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/action" }
+        },
+        "completeness": { "type": "string" },
+        "limitations": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "actionContext": { "$ref": "#/$defs/action" },
+    "informationPolicy": { "type": "object" }
+  },
+  "$defs": {
+    "fixture": {
+      "description": "How the captured state was reached. A staged capture had its starting state arranged deliberately by the probe, so it is evidence about the adapter rather than about a natural game and is never same-state comparable with a natural capture.",
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": { "enum": ["natural", "staged"] },
+        "stagedCard": { "type": "string", "minLength": 1 },
+        "sourceZone": { "type": "string", "minLength": 1 },
+        "cliArgument": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false,
+      "if": {
+        "properties": { "kind": { "const": "staged" } },
+        "required": ["kind"]
+      },
+      "then": {
+        "required": ["kind", "stagedCard", "sourceZone", "cliArgument"]
+      },
+      "else": {
+        "not": {
+          "anyOf": [
+            { "required": ["stagedCard"] },
+            { "required": ["sourceZone"] },
+            { "required": ["cliArgument"] }
+          ]
+        }
+      }
+    },
+    "playerReference": {
+      "type": "object",
+      "required": ["seat", "id", "name"],
+      "properties": {
+        "seat": { "type": "integer", "minimum": 1 },
+        "id": { "type": "integer" },
+        "name": { "type": "string" }
+      }
+    },
+    "player": {
+      "allOf": [
+        { "$ref": "#/$defs/playerReference" },
+        {
+          "type": "object",
+          "required": ["life", "poison", "hasLost", "zones", "commanders"],
+          "properties": {
+            "zones": { "$ref": "#/$defs/zones" }
+          }
+        }
+      ]
+    },
+    "zones": {
+      "type": "object",
+      "required": ["hand", "library"],
+      "properties": {
+        "hand": {
+          "type": "object",
+          "required": ["count", "visibility"],
+          "properties": {
+            "count": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "library": {
+          "description": "A library never exposes identities or order, for any player including the viewer.",
+          "type": "object",
+          "required": ["count", "visibility"],
+          "properties": {
+            "count": { "type": "integer", "minimum": 0 },
+            "visibility": { "const": "count-only" }
+          },
+          "not": { "required": ["cards"] }
+        }
+      }
+    },
+    "unrepresentedChoice": {
+      "description": "One strategically relevant decision the adapter has not represented. `code` names a choice TYPE, not a unique instance; per-instance choice identity is deferred to the M2 canonical identity design.",
+      "type": "object",
+      "required": ["code", "decisionType", "source", "description"],
+      "properties": {
+        "code": { "type": "string", "minLength": 1 },
+        "decisionType": {
+          "enum": [
+            "OPTIONAL_COST",
+            "MODE",
+            "TARGET",
+            "PAYMENT",
+            "ORDERING",
+            "VALUE",
+            "UNKNOWN"
+          ]
+        },
+        "source": {
+          "type": "object",
+          "required": ["forgeCardId", "name", "zone"],
+          "properties": {
+            "forgeCardId": {
+              "description": "Debug-only. Forge object ids are not stable across runs; stable identity is deferred to M2.",
+              "type": "string"
+            },
+            "name": { "type": ["string", "null"] },
+            "zone": { "type": ["string", "null"] }
+          }
+        },
+        "description": { "type": "string", "minLength": 1 },
+        "timing": { "enum": ["ON_CAST", "ON_ENTER", "ON_RESOLVE", "UNKNOWN"] },
+        "optional": { "type": "boolean" },
+        "amount": {
+          "type": "object",
+          "required": ["unit", "value"],
+          "properties": {
+            "unit": { "type": "string" },
+            "value": { "type": "integer" }
+          }
+        },
+        "outcomes": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "action": {
+      "type": "object",
+      "required": ["id", "category", "executable", "unrepresentedChoices"],
+      "properties": {
+        "id": { "type": "string" },
+        "category": {
+          "enum": [
+            "PASS_PRIORITY",
+            "PLAY_LAND",
+            "CAST_SPELL",
+            "ACTIVATE_MANA_ABILITY",
+            "ACTIVATE_ABILITY"
+          ]
+        },
+        "forgeAbilityId": {
+          "description": "Debug-only. Not stable across runs; see M2.",
+          "type": "string"
+        },
+        "sourceCardId": { "type": "string" },
+        "abilityId": { "type": "string" },
+        "expansionVersion": { "type": "integer", "minimum": 1 },
+        "manaCost": { "type": ["string", "null"] },
+        "printedManaCost": { "type": ["string", "null"] },
+        "executable": { "type": "boolean" },
+        "requiresChoiceExpansion": { "type": "boolean" },
+        "unrepresentedChoices": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/unrepresentedChoice" }
+        },
+        "choices": {
+          "type": "object",
+          "properties": {
+            "targets": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/target" }
+            },
+            "payment": { "$ref": "#/$defs/payment" }
+          }
+        },
+        "status": { "enum": ["selected", "on-stack", "resolved"] }
+      },
+      "allOf": [
+        {
+          "description": "An action carrying any unrepresented choice must not be executable.",
+          "if": {
+            "properties": { "unrepresentedChoices": { "minItems": 1 } },
+            "required": ["unrepresentedChoices"]
+          },
+          "then": { "properties": { "executable": { "const": false } } }
+        },
+        {
+          "description": "An action carrying no unrepresented choice must be executable.",
+          "if": {
+            "properties": { "unrepresentedChoices": { "maxItems": 0 } },
+            "required": ["unrepresentedChoices"]
+          },
+          "then": { "properties": { "executable": { "const": true } } }
+        }
+      ]
+    },
+    "target": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": { "enum": ["PLAYER", "CARD", "SPELL"] },
+        "seat": { "type": "integer", "minimum": 1 },
+        "id": { "type": ["integer", "string"] },
+        "name": { "type": "string" },
+        "sourceCardId": { "type": "string" },
+        "source": { "type": "string" },
+        "controllerSeat": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "payment": {
+      "type": "object",
+      "required": ["manaCount", "mana"],
+      "properties": {
+        "kind": { "const": "MANA" },
+        "manaCount": { "type": "integer", "minimum": 0 },
+        "mana": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["color", "sourceCardId", "source"],
+            "properties": {
+              "color": { "type": "string" },
+              "sourceCardId": { "type": "string" },
+              "source": { "type": "string" },
+              "sourceControllerSeat": { "type": "integer", "minimum": 1 },
+              "manaAbilityId": { "type": "string" }
+            }
+          }
+        },
+        "lifePaid": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "stackItem": {
+      "type": "object",
+      "required": ["id", "sourceCardId", "source", "controllerSeat", "kind", "description", "targets", "payment"],
+      "properties": {
+        "id": { "type": "string" },
+        "sourceCardId": { "type": "string" },
+        "source": { "type": "string" },
+        "controllerSeat": { "type": "integer", "minimum": 1 },
+        "kind": { "enum": ["spell", "trigger", "ability"] },
+        "description": { "type": "string" },
+        "targets": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/target" }
+        },
+        "payment": { "$ref": "#/$defs/payment" }
+      }
+    }
+  }
+}

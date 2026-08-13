@@ -11,10 +11,16 @@
     "build:decks": "node scripts/build-forge-decks.mjs",
     "audit:forge": "node scripts/audit-forge-support.mjs",
     "observe": "node scripts/capture-priority-observation.mjs",
-    "probe:land": "node scripts/capture-priority-observation.mjs --play-land \"Sink into Stupor\"",
+    "probe:land": "node scripts/capture-priority-observation.mjs --play-land \"Command Tower\" --stage-into-hand \"Command Tower\"",
+    "probe:land:staged-audit": "node scripts/capture-priority-observation.mjs --audit-only --stage-into-hand \"Steam Vents\"",
+    "verify:choice-guard": "node scripts/verify-choice-refusal.mjs --mode guard --source \"Shatterskull Smashing\"",
+    "verify:hook-fault": "node scripts/verify-choice-refusal.mjs --mode fault --source \"Shatterskull Smashing\"",
     "probe:spell": "node scripts/capture-priority-observation.mjs --cast-spell \"Mox Amber\"",
     "probe:targeted": "node scripts/capture-priority-observation.mjs --cast-targeted-spell \"Lava Dart\" --mana-source \"Mountain\" --additional-mana-source \"Great Furnace\" --target-player-seat 2",
     "simulate": "node scripts/run-forge-baseline.mjs",
     "simulate:dry": "node scripts/run-forge-baseline.mjs --dry-run"
+  },
+  "devDependencies": {
+    "ajv": "8.20.0"
   }
 }

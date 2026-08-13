@@ -30,6 +30,7 @@ public final class SpellActionProbeMain {
         System.setProperty("sun.java2d.d3d", "false");
         GuiBase.setInterface(new HeadlessGuiBase());
         FModel.initialize(null, null);
+        ObservationWriter.setNaturalFixture();
         MyRandom.setRandom(new Random(options.seed));
 
         AtomicInteger stage = new AtomicInteger(0);

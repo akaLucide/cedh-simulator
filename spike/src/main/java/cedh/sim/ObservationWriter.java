@@ -42,7 +42,38 @@ public final class ObservationWriter {
             ZoneType.Command
     );
 
+    /**
+     * How the captured state was reached.
+     *
+     * <p>Set once per probe process, before any capture is written. A staged
+     * capture is one whose starting state the probe arranged deliberately — it is
+     * evidence about the adapter, not about a natural game, and must never be
+     * presented as same-state comparable with a natural capture.</p>
+     */
+    private static Map<String, Object> fixture = naturalFixture();
+
     private ObservationWriter() {
+    }
+
+    private static Map<String, Object> naturalFixture() {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("kind", "natural");
+        return result;
+    }
+
+    /** Declares the capture as reached by ordinary play from the seed. */
+    public static void setNaturalFixture() {
+        fixture = naturalFixture();
+    }
+
+    /** Declares the capture as reached by deliberately staging a card. */
+    public static void setStagedFixture(String stagedCard, String sourceZone, String cliArgument) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("kind", "staged");
+        result.put("stagedCard", stagedCard);
+        result.put("sourceZone", sourceZone);
+        result.put("cliArgument", cliArgument);
+        fixture = result;
     }
 
     public static void write(Path output, Player viewer, int viewerSeat) throws IOException {
@@ -92,7 +123,8 @@ public final class ObservationWriter {
         Game game = viewer.getGame();
         PhaseHandler phase = game.getPhaseHandler();
         Map<String, Object> root = new LinkedHashMap<>();
-        root.put("schemaVersion", 1);
+        root.put("schemaVersion", 2);
+        root.put("fixture", fixture);
         root.put("viewer", playerReference(viewer, viewerSeat));
 
         Map<String, Object> gameState = new LinkedHashMap<>();
@@ -235,12 +267,15 @@ public final class ObservationWriter {
             List<Map<String, Object>> completeActions
     ) {
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("enumerationVersion", 1);
+        result.put("enumerationVersion", 2);
         List<Map<String, Object>> actions = new ArrayList<>();
 
+        // Passing priority asks the player nothing, so it is the one action that
+        // is complete without an audit.
         Map<String, Object> pass = new LinkedHashMap<>();
         pass.put("id", "pass-priority");
         pass.put("category", "PASS_PRIORITY");
+        pass.put("unrepresentedChoices", List.of());
         pass.put("executable", true);
         actions.add(pass);
 
@@ -267,9 +302,17 @@ public final class ObservationWriter {
                 action.put("api", ability.getApi() == null ? null : ability.getApi().name());
                 action.put("usesTargeting", ability.usesTargeting());
                 action.put("timingAndZoneLegal", true);
-                boolean completeLandAction = ability.isLandAbility();
-                action.put("executable", completeLandAction);
-                action.put("requiresChoiceExpansion", !completeLandAction);
+
+                // v2: `executable` carries no independent information. It is true
+                // exactly when the audit proved every decision represented.
+                List<UnrepresentedChoice> choices = ActionChoiceAudit.audit(ability);
+                List<Map<String, Object>> choiceJson = new ArrayList<>();
+                for (UnrepresentedChoice choice : choices) {
+                    choiceJson.add(choice.toJson());
+                }
+                action.put("unrepresentedChoices", choiceJson);
+                action.put("executable", choiceJson.isEmpty());
+                action.put("requiresChoiceExpansion", !choiceJson.isEmpty());
                 actions.add(action);
             }
         }
@@ -281,11 +324,13 @@ public final class ObservationWriter {
         }
 
         result.put("actions", actions);
-        result.put("completeness", "pass-and-land-actions-plus-adapter-expanded-actions-and-candidates");
+        result.put("completeness", "audited-actions-only-executable-derived-from-unrepresented-choices");
         result.put("limitations", List.of(
+                "An action is executable only when the audit proved every decision represented.",
                 "The adapter supplies complete payment-and-target plans for its supported simple-spell boundary.",
                 "Modes, X values, divisions, ordering, and optional costs are not expanded yet.",
                 "Unexpanded candidate abilities are not mana-affordability checked.",
+                "A land play with a battlefield-entry trigger is not yet auditable and stays non-executable.",
                 "Special actions other than land play are not enumerated yet."
         ));
         return result;

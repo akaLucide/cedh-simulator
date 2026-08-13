@@ -262,6 +262,9 @@ public final class SimpleSpellActionExpander {
         action.put("manaCost", manaProfile.effectiveCost());
         action.put("usesTargeting", true);
         action.put("timingAndZoneLegal", true);
+        // This action reached the end of expansion with an exact target and an
+        // exact payment, so the empty list is an assertion, not a default.
+        action.put("unrepresentedChoices", List.of());
         action.put("executable", true);
         action.put("requiresChoiceExpansion", false);
 

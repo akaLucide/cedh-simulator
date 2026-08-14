@@ -259,7 +259,7 @@ npm run probe:targeted
 npm run simulate:dry
 ```
 
-> **Addendum — post-Milestone 1, 2026-08-14.** The command list above is
+> **Addendum — post-Milestone 1, 2026-08-13.** The command list above is
 > accurate for v0.5.0 and is left unchanged as part of this historical record.
 > Two of these commands have since changed:
 >

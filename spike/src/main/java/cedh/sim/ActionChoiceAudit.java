@@ -42,9 +42,26 @@ public final class ActionChoiceAudit {
      *
      * <p>Every probe controller that hands an ability to Forge calls this, so the
      * rule that {@code executable} means "nothing left unrepresented" has exactly
-     * one definition. Callers supply the choices for the action they are about to
-     * execute — the same list the observation publishes for it — and this decides
-     * whether Forge may see it.</p>
+     * one definition.</p>
+     *
+     * <p>Callers reach the choices they pass in one of two ways, and the
+     * difference matters when reasoning about whether the gate and the published
+     * capture can disagree:</p>
+     *
+     * <ul>
+     *   <li><strong>Raw candidates</strong> — the land and spell probes call
+     *       {@link #audit(SpellAbility)} on the ability they are about to play.
+     *       That is the same deterministic computation {@code ObservationWriter}
+     *       runs when it builds the action list, but it is a <em>separate
+     *       invocation</em>, not a read of the emitted JSON. Agreement follows
+     *       from both sides applying one shared audit to the same
+     *       {@code SpellAbility}.</li>
+     *   <li><strong>Expanded actions</strong> — the targeted probe passes
+     *       {@code ExpandedAction.unrepresentedChoices()}, the exact typed list
+     *       that is also serialized into that action's published JSON. Here gate
+     *       and capture share one object, so they cannot drift even in
+     *       principle.</li>
+     * </ul>
      *
      * <p>Refusing here rather than inside Forge matters: once the engine has the
      * ability, the stock AI will answer whatever it is asked, and the run produces

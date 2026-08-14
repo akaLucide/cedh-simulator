@@ -259,6 +259,20 @@ npm run probe:targeted
 npm run simulate:dry
 ```
 
+> **Addendum — post-Milestone 1, 2026-08-13.** The command list above is
+> accurate for v0.5.0 and is left unchanged as part of this historical record.
+> Two of these commands have since changed:
+>
+> - `npm run probe:spell` **no longer exists.** It cast Mox Amber even though the
+>   observation written in the same run marked that action non-executable. It is
+>   replaced by `npm run verify:spell-guard`, which confirms the cast is refused.
+> - `npm run probe:land` now stages a Command Tower, because every modal land
+>   face in the Ral deck carries an optional life payment and none is
+>   choice-free.
+>
+> See the current README and `docs/observation-schema.md` for the present
+> command surface.
+
 The archive intentionally excludes Forge build outputs and the large Forge runtime.
 
 ### Forge version nuance

@@ -19,6 +19,14 @@ import java.util.List;
 public final class UnrepresentedChoiceException extends RuntimeException {
     private static final long serialVersionUID = 1L;
 
+    /**
+     * Process exit code for a refusal, distinct from an ordinary crash.
+     *
+     * <p>A probe that refuses has behaved correctly while still failing, so the
+     * wrapper scripts need to tell "refused as designed" apart from "broke".</p>
+     */
+    public static final int EXIT_CODE = 3;
+
     private final transient List<UnrepresentedChoice> choices;
 
     public UnrepresentedChoiceException(String context, List<UnrepresentedChoice> choices) {
@@ -28,6 +36,25 @@ public final class UnrepresentedChoiceException extends RuntimeException {
 
     public List<UnrepresentedChoice> choices() {
         return choices;
+    }
+
+    /**
+     * Finds a refusal inside a throwable chain.
+     *
+     * <p>Forge wraps controller exceptions on some paths, so probe mains must
+     * unwrap before deciding whether a failure was the designed refusal or a real
+     * fault. Guards against a self-referential cause chain.</p>
+     */
+    public static UnrepresentedChoiceException findIn(Throwable error) {
+        for (Throwable current = error; current != null; current = current.getCause()) {
+            if (current instanceof UnrepresentedChoiceException refusal) {
+                return refusal;
+            }
+            if (current.getCause() == current) {
+                break;
+            }
+        }
+        return null;
     }
 
     private static String describe(String context, List<UnrepresentedChoice> choices) {

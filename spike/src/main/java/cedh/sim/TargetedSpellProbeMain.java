@@ -64,7 +64,20 @@ public final class TargetedSpellProbeMain {
         rules.setAppliedVariants(EnumSet.of(GameType.Commander));
         Match match = new Match(rules, players, "Targeted spell action probe");
         Game game = match.createGame();
-        match.startGame(game, () -> installManaFixture(game, options));
+        try {
+            match.startGame(game, () -> installManaFixture(game, options));
+        } catch (RuntimeException error) {
+            UnrepresentedChoiceException refusal = UnrepresentedChoiceException.findIn(error);
+            if (refusal == null) {
+                throw error;
+            }
+            // Expansion should have proven this action complete, so a refusal here
+            // is a real regression — reported as the typed refusal, not a crash.
+            System.out.println("PROBE_REFUSED_WITH=" + refusal.getClass().getSimpleName());
+            refusal.printStackTrace(System.out);
+            System.out.flush();
+            System.exit(UnrepresentedChoiceException.EXIT_CODE);
+        }
 
         if (stage.get() != 3
                 || !Files.isRegularFile(options.beforeOutput)

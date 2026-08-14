@@ -116,6 +116,13 @@ reproduced all three files byte-for-byte. They are stored as
 `examples/spell-action-stack-v1.json`, and
 `examples/spell-action-resolved-v1.json`.
 
+> As with the land paragraph above, this records what v1 did and the captures
+> are frozen as that record. Under v2 the Mox Amber cast is **not** executable:
+> it is an unexpanded candidate carrying `UNSUPPORTED_ACTION_EXPANSION`, so the
+> probe now refuses it before Forge sees it. Being target-free and zero-cost is
+> a structural property, not a proof that every decision is represented.
+> `npm run verify:spell-guard` verifies the refusal.
+
 The latest probe uses a controlled legal state: the deterministic opening hand
 contains Lava Dart, and the fixture moves the same deck's Mountain and Great
 Furnace from its library to the battlefield after mulligans. The expander
@@ -170,14 +177,14 @@ npm run verify:choice-guard -- --forge-root C:\path\to\extracted-forge
 npm run verify:hook-fault  -- --forge-root C:\path\to\extracted-forge
 ```
 
-Run the first stack and resolution probe with:
+Confirm that an unaudited cast is refused rather than executed:
 
 ```powershell
-npm run probe:spell -- `
-  --forge-root C:\path\to\extracted-forge `
-  --seed 20260812 `
-  --seat 1
+npm run verify:spell-guard -- --forge-root C:\path\to\extracted-forge
 ```
+
+This replaces `probe:spell`, which executed Mox Amber despite the capture it
+wrote in the same run publishing that action as non-executable.
 
 Run the explicit payment-and-target probe with:
 

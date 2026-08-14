@@ -21,9 +21,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Proves that one adapter-selected action can execute and return priority. */
 public final class LandActionProbeMain {
-    /** Exit code for the expected typed refusal, distinct from an ordinary crash. */
-    static final int REFUSED_EXIT_CODE = 3;
-
     private LandActionProbeMain() {
     }
 
@@ -97,7 +94,7 @@ public final class LandActionProbeMain {
         try {
             match.startGame(game);
         } catch (RuntimeException error) {
-            UnrepresentedChoiceException refusal = refusalIn(error);
+            UnrepresentedChoiceException refusal = UnrepresentedChoiceException.findIn(error);
             if (refusal == null) {
                 throw error;
             }
@@ -107,7 +104,7 @@ public final class LandActionProbeMain {
             System.out.println("PROBE_REFUSED_WITH=" + refusal.getClass().getSimpleName());
             refusal.printStackTrace(System.out);
             System.out.flush();
-            System.exit(REFUSED_EXIT_CODE);
+            System.exit(UnrepresentedChoiceException.EXIT_CODE);
         }
 
         reportHookInvocations();
@@ -131,19 +128,6 @@ public final class LandActionProbeMain {
         System.out.println(
                 "PROBE_HOOK_INVOCATIONS=" + LandActionProbeControllerAi.forgeDecisionHookInvocations()
         );
-    }
-
-    /** Forge may wrap a controller exception, so unwrap before classifying it. */
-    private static UnrepresentedChoiceException refusalIn(Throwable error) {
-        for (Throwable current = error; current != null; current = current.getCause()) {
-            if (current instanceof UnrepresentedChoiceException refusal) {
-                return refusal;
-            }
-            if (current.getCause() == current) {
-                break;
-            }
-        }
-        return null;
     }
 
     static final class Arguments {

@@ -64,6 +64,16 @@ public final class SpellActionProbeControllerAi extends PlayerControllerAi {
                 }
                 for (SpellAbility ability : card.getAllPossibleAbilities(getPlayer(), true)) {
                     if (ability.isSpell() && !ability.usesTargeting()) {
+                        // Being target-free and zero-cost is a structural property,
+                        // not a proof that every decision is represented. This probe
+                        // used to treat the two as the same thing and cast anyway,
+                        // while the capture it had just written published the same
+                        // action as non-executable. The gate below is the same audit
+                        // ObservationWriter runs, so the two can no longer disagree.
+                        ActionChoiceAudit.requireRepresented(
+                                "Spell action for " + card.getName(),
+                                ActionChoiceAudit.audit(ability)
+                        );
                         return List.of(ability);
                     }
                 }

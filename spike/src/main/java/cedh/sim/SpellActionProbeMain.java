@@ -60,7 +60,20 @@ public final class SpellActionProbeMain {
         rules.setAppliedVariants(EnumSet.of(GameType.Commander));
         Match match = new Match(rules, players, "Spell action probe");
         Game game = match.createGame();
-        match.startGame(game);
+        try {
+            match.startGame(game);
+        } catch (RuntimeException error) {
+            UnrepresentedChoiceException refusal = UnrepresentedChoiceException.findIn(error);
+            if (refusal == null) {
+                throw error;
+            }
+            // Refusing an unaudited cast is correct behaviour that still ends the
+            // run, so it exits with the refusal code rather than a generic failure.
+            System.out.println("PROBE_REFUSED_WITH=" + refusal.getClass().getSimpleName());
+            refusal.printStackTrace(System.out);
+            System.out.flush();
+            System.exit(UnrepresentedChoiceException.EXIT_CODE);
+        }
 
         if (stage.get() != 3
                 || !Files.isRegularFile(options.beforeOutput)

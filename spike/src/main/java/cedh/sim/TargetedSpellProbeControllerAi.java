@@ -27,7 +27,8 @@ public final class TargetedSpellProbeControllerAi extends PlayerControllerAi {
     private final Path resolvedOutput;
     private final AtomicInteger stage;
     private SimpleSpellActionExpander.ExpandedAction selectedAction;
-    private List<Map<String, Object>> expandedActionMaps = List.of();
+    private SimpleSpellActionExpander.Expansion expansion =
+            SimpleSpellActionExpander.Expansion.unattempted();
 
     public TargetedSpellProbeControllerAi(
             Player player,
@@ -66,10 +67,12 @@ public final class TargetedSpellProbeControllerAi extends PlayerControllerAi {
         }
 
         if (stage.compareAndSet(0, 1)) {
-            SimpleSpellActionExpander.Expansion expansion = SimpleSpellActionExpander.expand(getPlayer());
-            expandedActionMaps = expansion.actions().stream()
-                    .map(SimpleSpellActionExpander.ExpandedAction::json)
-                    .toList();
+            expansion = SimpleSpellActionExpander.expand(getPlayer());
+            // Set-level gate: refuse before any action is selected from a set that is
+            // known to be partial. Sits alongside the per-action represented-choice
+            // gate below, and reads the same Expansion the capture serializes.
+            EnumerationGuard.requireCompleteEnumeration(
+                    "Targeted spell action for " + sourceName, expansion);
             selectedAction = expansion.actions().stream()
                     .filter(this::matchesRequestedAction)
                     .findFirst()
@@ -148,7 +151,14 @@ public final class TargetedSpellProbeControllerAi extends PlayerControllerAi {
         try {
             Map<String, Object> context = new LinkedHashMap<>(selectedAction.json());
             context.put("status", status);
-            ObservationWriter.write(output, getPlayer(), seat, context, expandedActionMaps);
+            // Enumeration metadata belongs only to the state it was computed in. The
+            // stack and resolved captures are later states in which no expansion was
+            // attempted; republishing the pre-cast expansion there would describe a
+            // candidate set that no longer exists.
+            ObservationWriter.write(output, getPlayer(), seat, context,
+                    "selected".equals(status)
+                            ? expansion
+                            : SimpleSpellActionExpander.Expansion.unattempted());
         } catch (IOException error) {
             throw new IllegalStateException("Could not write targeted-spell observation", error);
         }

@@ -3,7 +3,8 @@ import Ajv2020 from 'ajv/dist/2020.js';
 
 const SCHEMA_FILES = {
   1: '../../schemas/observation-v1.schema.json',
-  2: '../../schemas/observation-v2.schema.json'
+  2: '../../schemas/observation-v2.schema.json',
+  3: '../../schemas/observation-v3.schema.json'
 };
 
 const compiled = new Map();

@@ -19,6 +19,7 @@ const DECISION_TYPES = new Set([
  * from `unrepresentedChoices` being empty. See docs/observation-schema.md.
  */
 export function observationErrors(observation) {
+  if (observation?.schemaVersion === 3) return observationV3Errors(observation);
   return observation?.schemaVersion === 2
     ? observationV2Errors(observation)
     : observationV1Errors(observation);
@@ -193,7 +194,18 @@ function observationV2Errors(observation) {
 
   errors.push(...informationBoundaryErrors(observation));
   errors.push(...fixtureErrors(observation.fixture));
+  errors.push(...actionContractErrors(observation));
+  return errors;
+}
 
+/**
+ * The action rules shared by v2 and v3. `executable` carries no independent
+ * information: it is true exactly when the adapter has represented every
+ * strategically relevant choice for that action. No category — land plays
+ * included — may opt out.
+ */
+function actionContractErrors(observation) {
+  const errors = [];
   const actions = observation.availableActions.actions;
   if (!actions.some((action) => action.category === 'PASS_PRIORITY' && action.executable === true)) {
     errors.push('an executable PASS_PRIORITY action is required');
@@ -237,6 +249,320 @@ function observationV2Errors(observation) {
     }
   }
   return errors;
+}
+
+
+
+/**
+ * Cross-field consistency for `simpleSpellExpansion`.
+ *
+ * Exported and pure so it can be tested directly on synthetic inputs. JSON
+ * Schema handles types, required fields, enums, nullability and the four
+ * mutually exclusive branches; it cannot express arithmetic across records, so
+ * everything summed or cross-referenced is enforced here. Stock Ajv does not
+ * check any of the relationships below.
+ */
+export function simpleSpellExpansionErrors(expansion, actions = []) {
+  const errors = [];
+  if (typeof expansion !== 'object' || expansion === null || Array.isArray(expansion)) {
+    return ['simpleSpellExpansion must be a structured object'];
+  }
+  const label = 'simpleSpellExpansion';
+  const inspected = expansion.inspectedAbilities ?? [];
+  const exclusions = expansion.manaSourceExclusions ?? [];
+
+  // Branch consistency, restated independently of the schema so a schema bug
+  // cannot let an impossible mixture through.
+  const complete = expansion.attempted === true
+    && (expansion.suppressedReason === null || expansion.suppressedReason === undefined)
+    && expansion.truncated === false
+    && expansion.candidateScanComplete === true;
+  if (expansion.complete !== complete) {
+    errors.push(`${label}: complete must be ${complete} for this attempted/suppressed/truncated/scan state`);
+  }
+  if (expansion.candidateUnitsMayBeUninspected !== (expansion.candidateScanComplete !== true)) {
+    errors.push(`${label}: candidateUnitsMayBeUninspected must be the inverse of candidateScanComplete`);
+  }
+  if (expansion.attempted !== true && inspected.length > 0) {
+    errors.push(`${label}: an unattempted expansion cannot have inspected abilities`);
+  }
+
+  // The published action array must match the declared emitted count, counted
+  // through the one exact selector rather than "carries an expansionVersion".
+  const expandedActions = actions.filter(isExpandedAction);
+  if (expandedActions.length !== expansion.emittedActionCount) {
+    errors.push(
+      `${label}: emittedActionCount ${expansion.emittedActionCount} does not match `
+      + `${expandedActions.length} expanded actions in the action array`
+    );
+  }
+
+  // Per-record arithmetic.
+  let capacitySum = 0;
+  let emittedSum = 0;
+  let atLeastSum = 0;
+  for (const [index, record] of inspected.entries()) {
+    const at = `${label}.inspectedAbilities[${index}]`;
+    if (record.outcome === 'EXPANDED') {
+      if (record.capacity !== record.targetCount * record.planCount) {
+        errors.push(`${at}: capacity must equal targetCount * planCount`);
+      }
+      if (record.omittedActionCount !== record.capacity - record.emittedActionCount) {
+        errors.push(`${at}: omittedActionCount must equal capacity - emittedActionCount`);
+      }
+      if (record.emittedActionCount > record.capacity) {
+        errors.push(`${at}: emittedActionCount cannot exceed capacity`);
+      }
+      capacitySum += record.capacity;
+      emittedSum += record.emittedActionCount;
+      atLeastSum += record.capacity - record.emittedActionCount;
+    } else if (record.outcome === 'SKIPPED') {
+      // A skipped unit contributes nothing to capacity: it was never in scope.
+      if (record.capacity !== undefined || record.emittedActionCount !== undefined) {
+        errors.push(`${at}: a skipped ability must not carry capacity or emitted counts`);
+      }
+    }
+  }
+
+  if (emittedSum !== expansion.emittedActionCount) {
+    errors.push(
+      `${label}: per-ability emitted counts sum to ${emittedSum}, `
+      + `but emittedActionCount is ${expansion.emittedActionCount}`
+    );
+  }
+  if (expansion.omittedActionCountAtLeast !== atLeastSum) {
+    errors.push(
+      `${label}: omittedActionCountAtLeast must equal ${atLeastSum}, `
+      + 'the sum over inspected units only'
+    );
+  }
+  if (expansion.candidateScanComplete === true) {
+    if (expansion.totalCapacity !== capacitySum) {
+      errors.push(`${label}: totalCapacity must equal the ${capacitySum} summed from inspected abilities`);
+    }
+    if (expansion.omittedActionCount !== expansion.totalCapacity - expansion.emittedActionCount) {
+      errors.push(`${label}: omittedActionCount must equal totalCapacity - emittedActionCount`);
+    }
+  } else {
+    if (expansion.totalCapacity !== null) {
+      errors.push(`${label}: totalCapacity must be null when the candidate scan did not complete`);
+    }
+    if (expansion.omittedActionCount !== null) {
+      errors.push(`${label}: omittedActionCount must be null when totalCapacity is unknown`);
+    }
+  }
+
+  // A truncated enumeration always knows of at least one action it did not emit;
+  // reporting a zero lower bound would claim the limit cost nothing. Every other
+  // state has nothing left over, so its bound is exactly zero.
+  if (expansion.truncated === true) {
+    if (!(expansion.omittedActionCountAtLeast >= 1)) {
+      errors.push(
+        `${label}: a truncated expansion must report omittedActionCountAtLeast >= 1, `
+        + `got ${expansion.omittedActionCountAtLeast}`
+      );
+    }
+  } else if (expansion.omittedActionCountAtLeast !== 0) {
+    errors.push(
+      `${label}: only a truncated expansion may report a positive `
+      + `omittedActionCountAtLeast, got ${expansion.omittedActionCountAtLeast}`
+    );
+  }
+
+  // No mana scan happens before the candidate loop runs, so an expansion that
+  // never got there cannot have inspected a mana ability.
+  if ((expansion.attempted !== true || expansion.suppressedReason) && exclusions.length > 0) {
+    errors.push(
+      `${label}: an unattempted or suppressed expansion cannot report mana-source exclusions`
+    );
+  }
+
+  // Excluded mana abilities are outside the boundary, not missing from inside it,
+  // so they must never appear as inspected units or contribute to the sums.
+  const inspectedIds = new Set(inspected.map((record) => record.abilityId));
+  for (const [index, exclusion] of exclusions.entries()) {
+    const at = `${label}.manaSourceExclusions[${index}]`;
+    if (exclusion.unit !== 'MANA_ABILITY' || exclusion.outcome !== 'EXCLUDED') {
+      errors.push(`${at}: must be an excluded MANA_ABILITY unit`);
+    }
+    if (inspectedIds.has(exclusion.manaAbilityId)) {
+      errors.push(`${at}: an excluded mana ability must not also be an inspected spell ability`);
+    }
+    const colors = exclusion.producibleColors ?? [];
+    if (colors.length < 2) {
+      errors.push(`${at}: an exclusion for a selectable colour needs at least two producible colours`);
+    }
+    if ([...colors].sort().join() !== colors.join()) {
+      errors.push(`${at}: producibleColors must be lexicographically sorted`);
+    }
+  }
+  return errors;
+}
+
+/**
+ * Every published action object is counted, whatever produced it.
+ *
+ * Deliberately separate from the expander's `emittedActionCount`: conflating the
+ * two would let a change in one silently satisfy the other.
+ */
+export function publishedActionCountErrors(availableActions) {
+  const actions = availableActions?.actions ?? [];
+  if (!Number.isInteger(availableActions?.publishedActionCount)) {
+    return ['availableActions.publishedActionCount must be an integer'];
+  }
+  if (availableActions.publishedActionCount < 0) {
+    return ['availableActions.publishedActionCount must not be negative'];
+  }
+  if (availableActions.publishedActionCount !== actions.length) {
+    return [
+      `availableActions.publishedActionCount ${availableActions.publishedActionCount} `
+      + `does not match the ${actions.length} published action objects`
+    ];
+  }
+  return [];
+}
+
+/**
+ * v3 contract. Keeps every v2 action rule and adds enumeration honesty: the
+ * capture must state what the expander attempted, inspected, emitted, and could
+ * not know.
+ */
+function observationV3Errors(observation) {
+  const errors = structuralErrors(observation, 3);
+  if (errors.length > 0) return errors;
+
+  errors.push(...informationBoundaryErrors(observation));
+  errors.push(...fixtureErrors(observation.fixture));
+  errors.push(...actionContractErrors(observation));
+  errors.push(...publishedActionCountErrors(observation.availableActions));
+  errors.push(...expandedActionFieldErrors(observation.availableActions.actions));
+  errors.push(...simpleSpellExpansionErrors(
+    observation.availableActions.simpleSpellExpansion,
+    observation.availableActions.actions
+  ));
+  return errors;
+}
+
+
+/**
+ * The supported simple-spell expansion version, mirroring
+ * `SimpleSpellActionExpander.EXPANSION_VERSION` in Java.
+ */
+export const SIMPLE_SPELL_EXPANSION_VERSION = 1;
+
+/**
+ * The one selector for expander output.
+ *
+ * Used identically by emitted-count validation, field-coverage checks, semantic
+ * sequence extraction, and probe assertions. "Any action carrying an
+ * expansionVersion" is not the same question: it would silently absorb a future
+ * expander's output, or an action of another category that happened to carry the
+ * field, into counts that are supposed to describe this expander alone.
+ */
+export function isExpandedAction(action) {
+  return action?.category === 'CAST_SPELL'
+    && action?.expansionVersion === SIMPLE_SPELL_EXPANSION_VERSION;
+}
+
+/**
+ * Every field an expanded action may carry, and how comparison treats it.
+ *
+ * The inventory is exhaustive on purpose. A new field added to expanded actions
+ * without a decision recorded here fails validation rather than silently joining
+ * or silently escaping the semantic comparison — the failure mode this
+ * classification exists to prevent.
+ *
+ *   SEMANTIC                  compared directly; a difference is a real difference
+ *   DEBUG_IDENTITY            a raw Forge id; dropped before comparison
+ *   EXCLUDED_DERIVED_IDENTITY composed from raw Forge ids; dropped before
+ *                             comparison and never traversed by the token
+ *                             allocator, so it cannot influence token discovery
+ *                             order
+ *   SEMANTIC_NESTED           compared after the same treatment is applied inside
+ */
+export const EXPANDED_ACTION_FIELD_CLASSES = Object.freeze({
+  id: 'EXCLUDED_DERIVED_IDENTITY',
+  category: 'SEMANTIC',
+  expansionVersion: 'SEMANTIC',
+  sourceCardId: 'DEBUG_IDENTITY',
+  source: 'SEMANTIC_NESTED',
+  abilityId: 'DEBUG_IDENTITY',
+  description: 'SEMANTIC',
+  printedManaCost: 'SEMANTIC',
+  manaCost: 'SEMANTIC',
+  usesTargeting: 'SEMANTIC',
+  timingAndZoneLegal: 'SEMANTIC',
+  unrepresentedChoices: 'SEMANTIC_NESTED',
+  executable: 'SEMANTIC',
+  requiresChoiceExpansion: 'SEMANTIC',
+  choices: 'SEMANTIC_NESTED'
+});
+
+/**
+ * The frozen order the projection is built in.
+ *
+ * Explicit rather than derived from the producer's object insertion order, so a
+ * reordering in the serializer cannot silently change what two runs compare.
+ */
+export const PROJECTED_FIELD_ORDER = Object.freeze([
+  'category',
+  'expansionVersion',
+  'source',
+  'description',
+  'printedManaCost',
+  'manaCost',
+  'usesTargeting',
+  'timingAndZoneLegal',
+  'unrepresentedChoices',
+  'executable',
+  'requiresChoiceExpansion',
+  'choices'
+]);
+
+/** Rejects an expanded-action field nobody has classified. */
+export function expandedActionFieldErrors(actions = []) {
+  const errors = [];
+  for (const action of actions) {
+    if (!isExpandedAction(action)) continue;
+    for (const field of Object.keys(action)) {
+      if (!Object.hasOwn(EXPANDED_ACTION_FIELD_CLASSES, field)) {
+        errors.push(
+          `${action.id}: expanded action field "${field}" is unclassified; `
+          + 'add it to EXPANDED_ACTION_FIELD_CLASSES so semantic comparison knows '
+          + 'whether it is meaningful or debug-only'
+        );
+      }
+    }
+  }
+  return errors;
+}
+
+/**
+ * The ordered semantic projection of a capture's expanded actions.
+ *
+ * Projects first, then normalizes: debug-only identity fields are dropped, the
+ * remaining structured identity references are canonicalized, and membership and
+ * order are preserved exactly. Order is never sorted away, so a genuine ordering
+ * difference between two runs still compares unequal.
+ */
+export function semanticExpandedActionSequence(capture) {
+  const actions = (capture?.availableActions?.actions ?? []).filter(isExpandedAction);
+  const unclassified = expandedActionFieldErrors(actions);
+  if (unclassified.length > 0) {
+    throw new Error(`cannot project unclassified fields: ${unclassified.join('; ')}`);
+  }
+  const projected = actions.map((action) => {
+    const result = {};
+    // Built in the frozen order, and only from fields that survive projection.
+    // The composite `id` is derived entirely from raw Forge ids, so it is dropped
+    // here and never reaches the token allocator.
+    for (const field of PROJECTED_FIELD_ORDER) {
+      if (Object.hasOwn(action, field)) result[field] = action[field];
+    }
+    return result;
+  });
+  // Identity-normalize what survives, in a projection-local namespace.
+  return normalizeCaptureBundle(projected);
 }
 
 export function assertValidObservation(observation) {

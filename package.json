@@ -17,6 +17,12 @@
     "verify:hook-fault": "node scripts/verify-choice-refusal.mjs --mode fault --source \"Shatterskull Smashing\"",
     "verify:spell-guard": "node scripts/verify-choice-refusal.mjs --mode spell --source \"Mox Amber\"",
     "probe:targeted": "node scripts/capture-priority-observation.mjs --cast-targeted-spell \"Lava Dart\" --mana-source \"Mountain\" --additional-mana-source \"Great Furnace\" --target-player-seat 2",
+    "probe:mana-colour-exclusion": "node scripts/inspect-expansion.mjs --label mana-colour-exclusion --stage-hand \"Lava Dart\" --stage-battlefield \"Command Tower\" --expect-exclusion-for \"Command Tower\" --expect-no-expanded-for \"Lava Dart\"",
+    "probe:copy-targets-exclusion": "node scripts/inspect-expansion.mjs --label copy-targets-exclusion --stage-hand \"Brain Freeze\" --stage-battlefield \"Mountain\" --stage-battlefield \"Great Furnace\" --expect-skipped spell-copy-targets-not-represented --expect-no-expanded-for \"Brain Freeze\"",
+    "probe:floating-mana": "node scripts/inspect-expansion.mjs --label floating-mana --produce-mana \"Mountain\" --expect-suppressed floating-mana-not-supported --expect-attempted true",
+    "capture:v3-natural": "node scripts/capture-priority-observation.mjs --output examples/priority-observation-v3.json",
+    "capture:v3-targeted": "node scripts/capture-priority-observation.mjs --cast-targeted-spell \"Lava Dart\" --mana-source \"Mountain\" --additional-mana-source \"Great Furnace\" --target-player-seat 2 --before examples/targeted-spell-before-v3.json",
+    "verify:enumeration-guard": "node scripts/verify-enumeration-guard.mjs",
     "simulate": "node scripts/run-forge-baseline.mjs",
     "simulate:dry": "node scripts/run-forge-baseline.mjs --dry-run"
   },

@@ -1,0 +1,1199 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.cedh-simulator/schemas/observation-v3.schema.json",
+  "title": "cEDH Simulator Player-Scoped Observation v3",
+  "description": "Adds machine-readable enumeration honesty. simpleSpellExpansion states exactly what the expander attempted, what it inspected, what it emitted, what it could not know, and which mana abilities fall outside the supported payment boundary. `complete` is scoped to that declared boundary.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "fixture",
+    "viewer",
+    "game",
+    "players",
+    "availableActions",
+    "informationPolicy"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 3
+    },
+    "fixture": {
+      "$ref": "#/$defs/fixture"
+    },
+    "viewer": {
+      "$ref": "#/$defs/playerReference"
+    },
+    "game": {
+      "type": "object",
+      "required": [
+        "turn",
+        "phase",
+        "activePlayer",
+        "priorityPlayer",
+        "stack"
+      ],
+      "properties": {
+        "turn": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "phase": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "activePlayer": {
+          "$ref": "#/$defs/playerReference"
+        },
+        "priorityPlayer": {
+          "$ref": "#/$defs/playerReference"
+        },
+        "stack": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/stackItem"
+          }
+        }
+      }
+    },
+    "players": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "$ref": "#/$defs/player"
+      }
+    },
+    "availableActions": {
+      "type": "object",
+      "required": [
+        "enumerationVersion",
+        "actions",
+        "completeness",
+        "limitations",
+        "simpleSpellExpansion",
+        "publishedActionCount"
+      ],
+      "properties": {
+        "enumerationVersion": {
+          "const": 3
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/action",
+            "allOf": [
+              {
+                "$ref": "#/$defs/expandedActionShape"
+              }
+            ]
+          }
+        },
+        "completeness": {
+          "type": "string"
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "simpleSpellExpansion": {
+          "$ref": "#/$defs/simpleSpellExpansion"
+        },
+        "publishedActionCount": {
+          "description": "Every published action object: pass, raw candidates, land plays and expanded casts. Distinct from simpleSpellExpansion.emittedActionCount, which counts only simple-spell expander output.",
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "actionContext": {
+      "$ref": "#/$defs/action"
+    },
+    "informationPolicy": {
+      "type": "object"
+    }
+  },
+  "$defs": {
+    "fixture": {
+      "description": "How the captured state was reached. A staged capture had its starting state arranged deliberately by the probe, so it is evidence about the adapter rather than about a natural game and is never same-state comparable with a natural capture.",
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "natural",
+            "staged"
+          ]
+        },
+        "stagedCard": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourceZone": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cliArgument": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false,
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "staged"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "required": [
+          "kind",
+          "stagedCard",
+          "sourceZone",
+          "cliArgument"
+        ]
+      },
+      "else": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "stagedCard"
+              ]
+            },
+            {
+              "required": [
+                "sourceZone"
+              ]
+            },
+            {
+              "required": [
+                "cliArgument"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "playerReference": {
+      "type": "object",
+      "required": [
+        "seat",
+        "id",
+        "name"
+      ],
+      "properties": {
+        "seat": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "id": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "player": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/playerReference"
+        },
+        {
+          "type": "object",
+          "required": [
+            "life",
+            "poison",
+            "hasLost",
+            "zones",
+            "commanders"
+          ],
+          "properties": {
+            "zones": {
+              "$ref": "#/$defs/zones"
+            }
+          }
+        }
+      ]
+    },
+    "zones": {
+      "type": "object",
+      "required": [
+        "hand",
+        "library"
+      ],
+      "properties": {
+        "hand": {
+          "type": "object",
+          "required": [
+            "count",
+            "visibility"
+          ],
+          "properties": {
+            "count": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "library": {
+          "description": "A library never exposes identities or order, for any player including the viewer.",
+          "type": "object",
+          "required": [
+            "count",
+            "visibility"
+          ],
+          "properties": {
+            "count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "visibility": {
+              "const": "count-only"
+            }
+          },
+          "not": {
+            "required": [
+              "cards"
+            ]
+          }
+        }
+      }
+    },
+    "unrepresentedChoice": {
+      "description": "One strategically relevant decision the adapter has not represented. `code` names a choice TYPE, not a unique instance; per-instance choice identity is deferred to the M2 canonical identity design.",
+      "type": "object",
+      "required": [
+        "code",
+        "decisionType",
+        "source",
+        "description"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "decisionType": {
+          "enum": [
+            "OPTIONAL_COST",
+            "MODE",
+            "TARGET",
+            "PAYMENT",
+            "ORDERING",
+            "VALUE",
+            "UNKNOWN"
+          ]
+        },
+        "source": {
+          "type": "object",
+          "required": [
+            "forgeCardId",
+            "name",
+            "zone"
+          ],
+          "properties": {
+            "forgeCardId": {
+              "description": "Debug-only. Forge object ids are not stable across runs; stable identity is deferred to M2.",
+              "type": "string"
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "zone": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "timing": {
+          "enum": [
+            "ON_CAST",
+            "ON_ENTER",
+            "ON_RESOLVE",
+            "UNKNOWN"
+          ]
+        },
+        "optional": {
+          "type": "boolean"
+        },
+        "amount": {
+          "type": "object",
+          "required": [
+            "unit",
+            "value"
+          ],
+          "properties": {
+            "unit": {
+              "type": "string"
+            },
+            "value": {
+              "type": "integer"
+            }
+          }
+        },
+        "outcomes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "action": {
+      "type": "object",
+      "required": [
+        "id",
+        "category",
+        "executable",
+        "unrepresentedChoices"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "category": {
+          "enum": [
+            "PASS_PRIORITY",
+            "PLAY_LAND",
+            "CAST_SPELL",
+            "ACTIVATE_MANA_ABILITY",
+            "ACTIVATE_ABILITY"
+          ]
+        },
+        "forgeAbilityId": {
+          "description": "Debug-only. Not stable across runs; see M2.",
+          "type": "string"
+        },
+        "sourceCardId": {
+          "type": "string"
+        },
+        "abilityId": {
+          "type": "string"
+        },
+        "expansionVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "manaCost": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "printedManaCost": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "executable": {
+          "type": "boolean"
+        },
+        "requiresChoiceExpansion": {
+          "type": "boolean"
+        },
+        "unrepresentedChoices": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/unrepresentedChoice"
+          }
+        },
+        "choices": {
+          "type": "object",
+          "properties": {
+            "targets": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/target"
+              }
+            },
+            "payment": {
+              "$ref": "#/$defs/payment"
+            }
+          }
+        },
+        "status": {
+          "enum": [
+            "selected",
+            "on-stack",
+            "resolved"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "description": "An action carrying any unrepresented choice must not be executable.",
+          "if": {
+            "properties": {
+              "unrepresentedChoices": {
+                "minItems": 1
+              }
+            },
+            "required": [
+              "unrepresentedChoices"
+            ]
+          },
+          "then": {
+            "properties": {
+              "executable": {
+                "const": false
+              }
+            }
+          }
+        },
+        {
+          "description": "An action carrying no unrepresented choice must be executable.",
+          "if": {
+            "properties": {
+              "unrepresentedChoices": {
+                "maxItems": 0
+              }
+            },
+            "required": [
+              "unrepresentedChoices"
+            ]
+          },
+          "then": {
+            "properties": {
+              "executable": {
+                "const": true
+              }
+            }
+          }
+        }
+      ]
+    },
+    "target": {
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "PLAYER",
+            "CARD",
+            "SPELL"
+          ]
+        },
+        "seat": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "id": {
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "sourceCardId": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "controllerSeat": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "payment": {
+      "type": "object",
+      "required": [
+        "manaCount",
+        "mana"
+      ],
+      "properties": {
+        "kind": {
+          "const": "MANA"
+        },
+        "manaCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "mana": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "color",
+              "sourceCardId",
+              "source"
+            ],
+            "properties": {
+              "color": {
+                "type": "string"
+              },
+              "sourceCardId": {
+                "type": "string"
+              },
+              "source": {
+                "type": "string"
+              },
+              "sourceControllerSeat": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "manaAbilityId": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "lifePaid": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "stackItem": {
+      "type": "object",
+      "required": [
+        "id",
+        "sourceCardId",
+        "source",
+        "controllerSeat",
+        "kind",
+        "description",
+        "targets",
+        "payment"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "sourceCardId": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "controllerSeat": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "kind": {
+          "enum": [
+            "spell",
+            "trigger",
+            "ability"
+          ]
+        },
+        "description": {
+          "type": "string"
+        },
+        "targets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/target"
+          }
+        },
+        "payment": {
+          "$ref": "#/$defs/payment"
+        }
+      }
+    },
+    "simpleSpellExpansion": {
+      "description": "Enumeration honesty. `complete` is derived from one Java definition on the typed Expansion, and the same instance drives the pre-execution guard, so a capture cannot claim a completeness the guard would refuse.",
+      "allOf": [
+        {
+          "type": "object",
+          "required": [
+            "attempted",
+            "complete",
+            "truncated",
+            "actionLimit",
+            "emittedActionCount",
+            "totalCapacity",
+            "omittedActionCount",
+            "omittedActionCountAtLeast",
+            "candidateScanComplete",
+            "candidateUnitsMayBeUninspected",
+            "inspectedAbilities",
+            "uninspectedSourceCards",
+            "manaSourceExclusions"
+          ],
+          "properties": {
+            "attempted": {
+              "type": "boolean"
+            },
+            "suppressedReason": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1
+            },
+            "complete": {
+              "type": "boolean"
+            },
+            "truncated": {
+              "type": "boolean"
+            },
+            "actionLimit": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "emittedActionCount": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "totalCapacity": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "omittedActionCount": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "omittedActionCountAtLeast": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "candidateScanComplete": {
+              "type": "boolean"
+            },
+            "candidateUnitsMayBeUninspected": {
+              "type": "boolean"
+            },
+            "inspectedAbilities": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/inspectedAbility"
+              }
+            },
+            "uninspectedSourceCards": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/uninspectedSourceCard"
+              }
+            },
+            "manaSourceExclusions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/manaSourceExclusion"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "oneOf": [
+            {
+              "title": "Unattempted",
+              "type": "object",
+              "properties": {
+                "attempted": {
+                  "const": false
+                },
+                "suppressedReason": {
+                  "type": "null"
+                },
+                "complete": {
+                  "const": false
+                },
+                "truncated": {
+                  "const": false
+                },
+                "candidateScanComplete": {
+                  "const": false
+                },
+                "candidateUnitsMayBeUninspected": {
+                  "const": true
+                },
+                "totalCapacity": {
+                  "type": "null"
+                },
+                "omittedActionCount": {
+                  "type": "null"
+                },
+                "emittedActionCount": {
+                  "const": 0
+                },
+                "inspectedAbilities": {
+                  "maxItems": 0
+                },
+                "uninspectedSourceCards": {
+                  "maxItems": 0
+                },
+                "omittedActionCountAtLeast": {
+                  "const": 0
+                },
+                "manaSourceExclusions": {
+                  "maxItems": 0
+                }
+              },
+              "required": [
+                "attempted",
+                "suppressedReason",
+                "complete",
+                "truncated",
+                "candidateScanComplete",
+                "candidateUnitsMayBeUninspected",
+                "totalCapacity",
+                "omittedActionCount",
+                "emittedActionCount",
+                "inspectedAbilities",
+                "uninspectedSourceCards",
+                "omittedActionCountAtLeast",
+                "manaSourceExclusions"
+              ]
+            },
+            {
+              "title": "Suppressed",
+              "type": "object",
+              "properties": {
+                "attempted": {
+                  "const": true
+                },
+                "suppressedReason": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "complete": {
+                  "const": false
+                },
+                "truncated": {
+                  "const": false
+                },
+                "candidateScanComplete": {
+                  "const": false
+                },
+                "candidateUnitsMayBeUninspected": {
+                  "const": true
+                },
+                "totalCapacity": {
+                  "type": "null"
+                },
+                "omittedActionCount": {
+                  "type": "null"
+                },
+                "emittedActionCount": {
+                  "const": 0
+                },
+                "inspectedAbilities": {
+                  "maxItems": 0
+                },
+                "uninspectedSourceCards": {
+                  "maxItems": 0
+                },
+                "omittedActionCountAtLeast": {
+                  "const": 0
+                },
+                "manaSourceExclusions": {
+                  "maxItems": 0
+                }
+              },
+              "required": [
+                "attempted",
+                "suppressedReason",
+                "complete",
+                "truncated",
+                "candidateScanComplete",
+                "candidateUnitsMayBeUninspected",
+                "totalCapacity",
+                "omittedActionCount",
+                "emittedActionCount",
+                "inspectedAbilities",
+                "uninspectedSourceCards",
+                "omittedActionCountAtLeast",
+                "manaSourceExclusions"
+              ]
+            },
+            {
+              "title": "Complete",
+              "type": "object",
+              "properties": {
+                "attempted": {
+                  "const": true
+                },
+                "suppressedReason": {
+                  "type": "null"
+                },
+                "complete": {
+                  "const": true
+                },
+                "truncated": {
+                  "const": false
+                },
+                "candidateScanComplete": {
+                  "const": true
+                },
+                "candidateUnitsMayBeUninspected": {
+                  "const": false
+                },
+                "totalCapacity": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "omittedActionCount": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "uninspectedSourceCards": {
+                  "maxItems": 0
+                },
+                "omittedActionCountAtLeast": {
+                  "const": 0
+                }
+              },
+              "required": [
+                "attempted",
+                "suppressedReason",
+                "complete",
+                "truncated",
+                "candidateScanComplete",
+                "candidateUnitsMayBeUninspected",
+                "totalCapacity",
+                "omittedActionCount",
+                "uninspectedSourceCards",
+                "omittedActionCountAtLeast"
+              ]
+            },
+            {
+              "title": "Truncated",
+              "type": "object",
+              "properties": {
+                "attempted": {
+                  "const": true
+                },
+                "suppressedReason": {
+                  "type": "null"
+                },
+                "complete": {
+                  "const": false
+                },
+                "truncated": {
+                  "const": true
+                },
+                "candidateScanComplete": {
+                  "const": false
+                },
+                "candidateUnitsMayBeUninspected": {
+                  "const": true
+                },
+                "totalCapacity": {
+                  "type": "null"
+                },
+                "omittedActionCount": {
+                  "type": "null"
+                },
+                "omittedActionCountAtLeast": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "attempted",
+                "suppressedReason",
+                "complete",
+                "truncated",
+                "candidateScanComplete",
+                "candidateUnitsMayBeUninspected",
+                "totalCapacity",
+                "omittedActionCount",
+                "omittedActionCountAtLeast"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "inspectedAbility": {
+      "description": "One actually inspected (sourceCard, ability) unit. Never fabricated for a card the break chain did not reach.",
+      "type": "object",
+      "required": [
+        "unit",
+        "sourceCardId",
+        "abilityId",
+        "source",
+        "outcome"
+      ],
+      "properties": {
+        "unit": {
+          "const": "SPELL_ABILITY"
+        },
+        "sourceCardId": {
+          "description": "Debug-only. Forge ids are not stable across runs.",
+          "type": "string"
+        },
+        "abilityId": {
+          "description": "Debug-only.",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/card"
+        },
+        "outcome": {
+          "enum": [
+            "EXPANDED",
+            "SKIPPED"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "targetCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "planCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "capacity": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "emittedActionCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "omittedActionCount": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "title": "Expanded",
+          "properties": {
+            "outcome": {
+              "const": "EXPANDED"
+            }
+          },
+          "required": [
+            "outcome",
+            "targetCount",
+            "planCount",
+            "capacity",
+            "emittedActionCount",
+            "omittedActionCount"
+          ],
+          "not": {
+            "required": [
+              "reason"
+            ]
+          }
+        },
+        {
+          "title": "Skipped",
+          "properties": {
+            "outcome": {
+              "const": "SKIPPED"
+            }
+          },
+          "required": [
+            "outcome",
+            "reason"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "targetCount"
+                ]
+              },
+              {
+                "required": [
+                  "planCount"
+                ]
+              },
+              {
+                "required": [
+                  "capacity"
+                ]
+              },
+              {
+                "required": [
+                  "emittedActionCount"
+                ]
+              },
+              {
+                "required": [
+                  "omittedActionCount"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "uninspectedSourceCard": {
+      "description": "Source-card-level evidence for a hand card the break chain never reached. No ability records exist for it because nothing inspected its abilities.",
+      "type": "object",
+      "required": [
+        "unit",
+        "sourceCardId",
+        "source",
+        "outcome",
+        "reason"
+      ],
+      "properties": {
+        "unit": {
+          "const": "SOURCE_CARD"
+        },
+        "sourceCardId": {
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/card"
+        },
+        "outcome": {
+          "const": "NOT_REACHED"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "manaSourceExclusion": {
+      "description": "A mana ability outside the supported payment boundary because its colour is a decision rather than a fact. Excluded paths contribute to neither capacity nor omission arithmetic.",
+      "type": "object",
+      "required": [
+        "unit",
+        "outcome",
+        "sourceCardId",
+        "manaAbilityId",
+        "source",
+        "reason",
+        "producibleColors"
+      ],
+      "properties": {
+        "unit": {
+          "const": "MANA_ABILITY"
+        },
+        "outcome": {
+          "const": "EXCLUDED"
+        },
+        "sourceCardId": {
+          "description": "Debug-only.",
+          "type": "string"
+        },
+        "manaAbilityId": {
+          "description": "Debug-only.",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/card"
+        },
+        "reason": {
+          "const": "mana-source-with-selectable-colour"
+        },
+        "producibleColors": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "card": {
+      "description": "A card object as produced by the viewer-authorized observation path. A card the viewer may not identify carries a null name.",
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "visibility"
+      ],
+      "properties": {
+        "id": {
+          "description": "Debug-only. Forge object ids are not stable across runs.",
+          "type": "string"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "visibility": {
+          "enum": [
+            "known",
+            "hidden"
+          ]
+        },
+        "faceDown": {
+          "type": "boolean"
+        },
+        "zone": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ownerSeat": {
+          "type": "integer"
+        },
+        "controllerSeat": {
+          "type": "integer"
+        },
+        "tapped": {
+          "type": "boolean"
+        },
+        "counters": {
+          "type": "object"
+        }
+      }
+    },
+    "expandedActionShape": {
+      "description": "An expander-produced action is exactly a CAST_SPELL carrying the supported simple-spell expansion version. No other category may carry expansionVersion, and no other version is recognised.",
+      "if": {
+        "type": "object",
+        "required": [
+          "expansionVersion"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "CAST_SPELL"
+          },
+          "expansionVersion": {
+            "const": 1
+          }
+        },
+        "required": [
+          "category",
+          "expansionVersion"
+        ]
+      }
+    }
+  }
+}

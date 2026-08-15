@@ -77,7 +77,7 @@ public final class ObservationWriter {
     }
 
     public static void write(Path output, Player viewer, int viewerSeat) throws IOException {
-        write(output, viewer, viewerSeat, null, List.of());
+        write(output, viewer, viewerSeat, null, SimpleSpellActionExpander.Expansion.unattempted());
     }
 
     public static void write(
@@ -86,13 +86,8 @@ public final class ObservationWriter {
             int viewerSeat,
             Map<String, Object> actionContext
     ) throws IOException {
-        write(
-                output,
-                viewer,
-                viewerSeat,
-                actionContext,
-                actionContext == null ? List.of() : List.of(actionContext)
-        );
+        write(output, viewer, viewerSeat, actionContext,
+                SimpleSpellActionExpander.Expansion.unattempted());
     }
 
     public static void write(
@@ -100,9 +95,9 @@ public final class ObservationWriter {
             Player viewer,
             int viewerSeat,
             Map<String, Object> actionContext,
-            List<Map<String, Object>> expandedActions
+            SimpleSpellActionExpander.Expansion expansion
     ) throws IOException {
-        Map<String, Object> observation = capture(viewer, viewerSeat, actionContext, expandedActions);
+        Map<String, Object> observation = capture(viewer, viewerSeat, actionContext, expansion);
         Path parent = output.toAbsolutePath().getParent();
         if (parent != null) {
             Files.createDirectories(parent);
@@ -111,19 +106,19 @@ public final class ObservationWriter {
     }
 
     static Map<String, Object> capture(Player viewer, int viewerSeat) {
-        return capture(viewer, viewerSeat, null, List.of());
+        return capture(viewer, viewerSeat, null, SimpleSpellActionExpander.Expansion.unattempted());
     }
 
     static Map<String, Object> capture(
             Player viewer,
             int viewerSeat,
             Map<String, Object> actionContext,
-            List<Map<String, Object>> expandedActions
+            SimpleSpellActionExpander.Expansion expansion
     ) {
         Game game = viewer.getGame();
         PhaseHandler phase = game.getPhaseHandler();
         Map<String, Object> root = new LinkedHashMap<>();
-        root.put("schemaVersion", 2);
+        root.put("schemaVersion", 3);
         root.put("fixture", fixture);
         root.put("viewer", playerReference(viewer, viewerSeat));
 
@@ -141,7 +136,7 @@ public final class ObservationWriter {
             players.add(playerState(player, viewer, seat++));
         }
         root.put("players", players);
-        root.put("availableActions", availableActions(viewer, expandedActions));
+        root.put("availableActions", availableActions(viewer, expansion));
         if (actionContext != null) {
             root.put("actionContext", actionContext);
         }
@@ -264,10 +259,13 @@ public final class ObservationWriter {
 
     private static Map<String, Object> availableActions(
             Player viewer,
-            List<Map<String, Object>> completeActions
+            SimpleSpellActionExpander.Expansion expansion
     ) {
+        List<Map<String, Object>> completeActions = expansion.actions().stream()
+                .map(SimpleSpellActionExpander.ExpandedAction::json)
+                .toList();
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("enumerationVersion", 2);
+        result.put("enumerationVersion", 3);
         List<Map<String, Object>> actions = new ArrayList<>();
 
         // Passing priority asks the player nothing, so it is the one action that
@@ -324,6 +322,12 @@ public final class ObservationWriter {
         }
 
         result.put("actions", actions);
+        // Counts every published action object - pass, raw candidates, land plays and
+        // expanded casts alike. Deliberately distinct from the expander's
+        // emittedActionCount, which counts only what the simple-spell expander
+        // produced.
+        result.put("publishedActionCount", actions.size());
+        result.put("simpleSpellExpansion", simpleSpellExpansion(viewer, expansion));
         result.put("completeness", "audited-actions-only-executable-derived-from-unrepresented-choices");
         result.put("limitations", List.of(
                 "An action is executable only when the audit proved every decision represented.",
@@ -331,8 +335,83 @@ public final class ObservationWriter {
                 "Modes, X values, divisions, ordering, and optional costs are not expanded yet.",
                 "Unexpanded candidate abilities are not mana-affordability checked.",
                 "A land play with a battlefield-entry trigger is not yet auditable and stays non-executable.",
+                "Mana abilities that can produce more than one colour are outside the supported "
+                        + "payment boundary; their colour is a decision this enumeration does not represent.",
+                "A spell that can copy itself and choose new targets for the copies is outside the "
+                        + "supported boundary; the copies' targets are not represented.",
                 "Special actions other than land play are not enumerated yet."
         ));
+        return result;
+    }
+
+    /**
+     * Serializes enumeration honesty from the typed {@code Expansion}.
+     *
+     * <p>Every field here is read off the same instance the pre-execution guard
+     * consumes. Nothing is recomputed: a capture claiming {@code complete: true}
+     * and a guard that would refuse cannot coexist.</p>
+     */
+    private static Map<String, Object> simpleSpellExpansion(
+            Player viewer,
+            SimpleSpellActionExpander.Expansion expansion
+    ) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("attempted", expansion.attempted());
+        result.put("suppressedReason", expansion.suppressedReason());
+        result.put("complete", expansion.complete());
+        result.put("truncated", expansion.truncated());
+        result.put("actionLimit", expansion.actionLimit());
+        result.put("emittedActionCount", expansion.emittedActionCount());
+        result.put("totalCapacity", expansion.totalCapacity());
+        result.put("omittedActionCount", expansion.omittedActionCount());
+        result.put("omittedActionCountAtLeast", expansion.omittedActionCountAtLeast());
+        result.put("candidateScanComplete", expansion.candidateScanComplete());
+        result.put("candidateUnitsMayBeUninspected", expansion.candidateUnitsMayBeUninspected());
+
+        List<Map<String, Object>> inspected = new ArrayList<>();
+        for (SimpleSpellActionExpander.InspectedAbility entry : expansion.inspectedAbilities()) {
+            Map<String, Object> record = new LinkedHashMap<>();
+            record.put("unit", "SPELL_ABILITY");
+            record.put("sourceCardId", "card-" + entry.source().getId());
+            record.put("abilityId", "ability-" + entry.ability().getId());
+            record.put("source", card(entry.source(), viewer));
+            record.put("outcome", entry.outcome());
+            if ("SKIPPED".equals(entry.outcome())) {
+                record.put("reason", entry.reason());
+            } else {
+                record.put("targetCount", entry.targetCount());
+                record.put("planCount", entry.planCount());
+                record.put("capacity", entry.capacity());
+                record.put("emittedActionCount", entry.emitted());
+                record.put("omittedActionCount", entry.omitted());
+            }
+            inspected.add(record);
+        }
+        result.put("inspectedAbilities", inspected);
+
+        // Source-card-level evidence only. Nothing inspected these cards' abilities,
+        // so no ability records are invented for them.
+        List<Map<String, Object>> uninspected = new ArrayList<>();
+        for (Card source : expansion.uninspectedSourceCards()) {
+            Map<String, Object> record = new LinkedHashMap<>();
+            record.put("unit", "SOURCE_CARD");
+            record.put("sourceCardId", "card-" + source.getId());
+            record.put("source", card(source, viewer));
+            record.put("outcome", "NOT_REACHED");
+            record.put("reason", "candidate-scan-stopped-at-action-limit");
+            uninspected.add(record);
+        }
+        result.put("uninspectedSourceCards", uninspected);
+
+        List<Map<String, Object>> exclusions = new ArrayList<>();
+        for (SimpleSpellActionExpander.ManaSourceExclusion exclusion : expansion.manaSourceExclusions()) {
+            exclusions.add(exclusion.toJson());
+        }
+        result.put("manaSourceExclusions", exclusions);
+        // No aggregate skip-count map is published. `inspectedAbilities` is the
+        // authoritative per-unit record and suppression has `suppressedReason`; a
+        // second, unchecked aggregate could only drift from them. The map remains
+        // available inside Java for diagnostics and exception messages.
         return result;
     }
 

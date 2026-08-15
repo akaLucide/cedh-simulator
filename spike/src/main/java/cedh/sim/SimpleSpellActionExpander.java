@@ -4,12 +4,14 @@ import forge.ai.ComputerUtilMana;
 import forge.card.mana.ManaCost;
 import forge.card.mana.ManaCostShard;
 import forge.game.GameObject;
+import forge.game.ability.ApiType;
 import forge.game.card.Card;
 import forge.game.cost.Cost;
 import forge.game.cost.CostTap;
 import forge.game.mana.ManaCostBeingPaid;
 import forge.game.player.Player;
 import forge.game.spellability.SpellAbility;
+import forge.game.trigger.Trigger;
 import forge.game.zone.ZoneType;
 
 import java.util.ArrayList;
@@ -19,6 +21,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Expands a deliberately bounded class of targeted spells into complete,
@@ -41,30 +44,40 @@ public final class SimpleSpellActionExpander {
     public static Expansion expand(Player viewer) {
         List<ExpandedAction> actions = new ArrayList<>();
         Map<String, Integer> skipped = new LinkedHashMap<>();
-        boolean truncated = false;
+        List<InspectedAbility> inspected = new ArrayList<>();
+        List<ManaSourceExclusion> exclusions = new ArrayList<>();
 
         if (viewer.getManaPool().totalMana() != 0) {
             skipped.put("floating-mana-not-supported", 1);
-            return new Expansion(actions, skipped, false);
+            return Expansion.suppressed("floating-mana-not-supported", skipped);
         }
 
-        List<ManaOption> manaOptions = manaOptions(viewer);
-        for (Card source : viewer.getCardsIn(ZoneType.Hand)) {
+        List<ManaOption> manaOptions = manaOptions(viewer, exclusions);
+        List<Card> hand = new ArrayList<>(viewer.getCardsIn(ZoneType.Hand));
+        boolean truncated = false;
+        int cardIndex = 0;
+
+        outer:
+        for (; cardIndex < hand.size(); cardIndex++) {
+            Card source = hand.get(cardIndex);
             for (SpellAbility ability : source.getAllPossibleAbilities(viewer, true)) {
                 String unsupported = unsupportedReason(ability);
                 if (unsupported != null) {
                     skipped.merge(unsupported, 1, Integer::sum);
+                    inspected.add(InspectedAbility.skipped(source, ability, unsupported));
                     continue;
                 }
 
                 ManaProfile manaProfile = manaProfile(viewer, ability);
                 if (manaProfile == null) {
                     skipped.merge("non-fixed-or-complex-mana-cost", 1, Integer::sum);
+                    inspected.add(InspectedAbility.skipped(source, ability, "non-fixed-or-complex-mana-cost"));
                     continue;
                 }
                 List<ManaPlan> plans = manaPlans(manaProfile.requirements(), manaOptions);
                 if (plans.isEmpty()) {
                     skipped.merge("no-supported-mana-plan", 1, Integer::sum);
+                    inspected.add(InspectedAbility.skipped(source, ability, "no-supported-mana-plan"));
                     continue;
                 }
 
@@ -77,9 +90,15 @@ public final class SimpleSpellActionExpander {
                         .toList();
                 if (targets.isEmpty()) {
                     skipped.merge("no-legal-player-target", 1, Integer::sum);
+                    inspected.add(InspectedAbility.skipped(source, ability, "no-legal-player-target"));
                     continue;
                 }
 
+                // Capacity is exact for this unit: the deduplicated plan enumeration
+                // above ran to completion, so targets x plans is what this unit would
+                // emit if the action limit never intervened.
+                int capacity = targets.size() * plans.size();
+                int emittedBefore = actions.size();
                 for (Player target : targets) {
                     for (ManaPlan plan : plans) {
                         if (actions.size() >= MAX_ACTIONS) {
@@ -92,22 +111,65 @@ public final class SimpleSpellActionExpander {
                         break;
                     }
                 }
+                inspected.add(InspectedAbility.expanded(
+                        source, ability, targets.size(), plans.size(), capacity,
+                        actions.size() - emittedBefore));
                 if (truncated) {
-                    break;
+                    break outer;
                 }
-            }
-            if (truncated) {
-                break;
             }
         }
 
+        // Hand cards the break chain never reached are reported as source-card-level
+        // evidence. No ability records are fabricated for them: nothing inspected
+        // them, so nothing is known about their abilities.
+        List<Card> uninspected = truncated && cardIndex + 1 < hand.size()
+                ? List.copyOf(hand.subList(cardIndex + 1, hand.size()))
+                : List.of();
+
         actions.sort(Comparator.comparing(action -> (String) action.json().get("id")));
-        return new Expansion(actions, skipped, truncated);
+        return new Expansion(actions, skipped, truncated, true, null, !truncated,
+                List.copyOf(inspected), uninspected, List.copyOf(exclusions));
+    }
+
+    /**
+     * Refuses a cast that can copy itself and choose new targets for the copies.
+     *
+     * <p>Such a spell may present exactly one represented target and still create
+     * further target decisions when it resolves, so publishing it with an empty
+     * {@code unrepresentedChoices} list would assert a completeness the adapter
+     * cannot deliver.</p>
+     *
+     * <p>Detection is name-free and reads Forge's own rules data: the capability is
+     * an {@link ApiType#CopySpellAbility} step carrying {@code MayChooseTarget$ True}
+     * in a trigger's overriding-ability chain. Forge expands the Storm keyword into
+     * exactly that shape, and 195 card scripts in the pinned build carry the same
+     * parameter, so matching the capability covers the whole mechanic family rather
+     * than one keyword.</p>
+     */
+    private static boolean copiesItselfWithNewTargets(SpellAbility ability) {
+        Card host = ability.getHostCard();
+        if (host == null) {
+            return false;
+        }
+        for (Trigger trigger : host.getTriggers()) {
+            for (SpellAbility step = trigger.getOverridingAbility();
+                    step != null; step = step.getSubAbility()) {
+                if (step.getApi() == ApiType.CopySpellAbility
+                        && "True".equalsIgnoreCase(step.getParam("MayChooseTarget"))) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static String unsupportedReason(SpellAbility ability) {
         if (!ability.isSpell() || !ability.usesTargeting()) {
             return "not-a-targeted-spell";
+        }
+        if (copiesItselfWithNewTargets(ability)) {
+            return "spell-copy-targets-not-represented";
         }
         if (ability.getMinTargets() != 1 || ability.getMaxTargets() != 1) {
             return "not-exactly-one-target";
@@ -160,7 +222,7 @@ public final class SimpleSpellActionExpander {
         return new ManaProfile(requirements, printedCost.toString(), adjusted.toString());
     }
 
-    private static List<ManaOption> manaOptions(Player viewer) {
+    private static List<ManaOption> manaOptions(Player viewer, List<ManaSourceExclusion> exclusions) {
         List<ManaOption> result = new ArrayList<>();
         for (Card source : ComputerUtilMana.getAvailableManaSources(viewer, true)) {
             if (!source.isInZone(ZoneType.Battlefield)) {
@@ -176,10 +238,22 @@ public final class SimpleSpellActionExpander {
                         || ability.amountOfManaGenerated(true) != 1) {
                     continue;
                 }
+                // Filtering is per mana ability, not per card. A dual land exposes a
+                // separate single-colour ability per colour and stays admitted; only an
+                // ability that can itself produce several colours is excluded, because
+                // Forge would resolve that colour through PlayerController.chooseColor
+                // at activation - a decision this expander does not represent.
+                TreeSet<String> producible = new TreeSet<>();
                 for (String color : MANA_COLORS) {
                     if (ability.canProduce(color)) {
-                        result.add(new ManaOption(source, ability, color));
+                        producible.add(color);
                     }
+                }
+                if (producible.size() == 1) {
+                    result.add(new ManaOption(source, ability, producible.first()));
+                } else if (producible.size() > 1) {
+                    exclusions.add(new ManaSourceExclusion(
+                            source, ability, List.copyOf(producible), viewer));
                 }
             }
         }
@@ -302,11 +376,151 @@ public final class SimpleSpellActionExpander {
         return result;
     }
 
+    /**
+     * Everything known about one enumeration attempt.
+     *
+     * <p>This record is the single source of truth for enumeration honesty.
+     * {@link #complete()} is the <strong>one</strong> definition of completeness in
+     * the codebase: the serializer and the pre-execution guard both consume the same
+     * instance, so a capture can never claim a completeness the guard disagrees
+     * with.</p>
+     */
     public record Expansion(
             List<ExpandedAction> actions,
             Map<String, Integer> skippedCandidates,
-            boolean truncated
+            boolean truncated,
+            boolean attempted,
+            String suppressedReason,
+            boolean candidateScanComplete,
+            List<InspectedAbility> inspectedAbilities,
+            List<Card> uninspectedSourceCards,
+            List<ManaSourceExclusion> manaSourceExclusions
     ) {
+        /** An observation path that never ran the expander at all. */
+        public static Expansion unattempted() {
+            return new Expansion(List.of(), Map.of(), false, false, null, false,
+                    List.of(), List.of(), List.of());
+        }
+
+        /** Attempted, but refused to enumerate for a declared reason. */
+        public static Expansion suppressed(String reason, Map<String, Integer> skipped) {
+            return new Expansion(List.of(), Map.copyOf(skipped), false, true, reason, false,
+                    List.of(), List.of(), List.of());
+        }
+
+        /**
+         * THE definition of completeness. Complete means: the expander ran, was not
+         * suppressed, never hit the action limit, and inspected every candidate unit.
+         */
+        public boolean complete() {
+            return attempted && suppressedReason == null && !truncated && candidateScanComplete;
+        }
+
+        public boolean candidateUnitsMayBeUninspected() {
+            return !candidateScanComplete;
+        }
+
+        public int emittedActionCount() {
+            return actions.size();
+        }
+
+        public int actionLimit() {
+            return MAX_ACTIONS;
+        }
+
+        /**
+         * Exact total the supported boundary could emit, or null when unknowable.
+         *
+         * <p>Null whenever the candidate scan did not complete: units the break chain
+         * never reached could contribute any amount, so any number here would be a
+         * guess presented as a fact.</p>
+         */
+        public Integer totalCapacity() {
+            if (!candidateScanComplete) {
+                return null;
+            }
+            int total = 0;
+            for (InspectedAbility entry : inspectedAbilities) {
+                if (entry.capacity() != null) {
+                    total += entry.capacity();
+                }
+            }
+            return total;
+        }
+
+        /** Exact omission count, or null when the total capacity is unknown. */
+        public Integer omittedActionCount() {
+            Integer capacity = totalCapacity();
+            return capacity == null ? null : capacity - emittedActionCount();
+        }
+
+        /**
+         * Proven lower bound on omissions, always available.
+         *
+         * <p>Summed only over units actually inspected, so it stays true even when
+         * the scan stopped early.</p>
+         */
+        public int omittedActionCountAtLeast() {
+            int atLeast = 0;
+            for (InspectedAbility entry : inspectedAbilities) {
+                if (entry.capacity() != null && entry.emitted() != null) {
+                    atLeast += entry.capacity() - entry.emitted();
+                }
+            }
+            return atLeast;
+        }
+    }
+
+    /** One inspected (sourceCard, ability) unit. Never fabricated. */
+    public record InspectedAbility(
+            Card source,
+            SpellAbility ability,
+            String outcome,
+            String reason,
+            Integer targetCount,
+            Integer planCount,
+            Integer capacity,
+            Integer emitted
+    ) {
+        static InspectedAbility skipped(Card source, SpellAbility ability, String reason) {
+            return new InspectedAbility(source, ability, "SKIPPED", reason, null, null, null, null);
+        }
+
+        public static InspectedAbility expanded(Card source, SpellAbility ability,
+                int targetCount, int planCount, int capacity, int emitted) {
+            return new InspectedAbility(source, ability, "EXPANDED", null,
+                    targetCount, planCount, capacity, emitted);
+        }
+
+        public Integer omitted() {
+            return capacity == null || emitted == null ? null : capacity - emitted;
+        }
+    }
+
+    /**
+     * One mana ability excluded because its colour is a decision, not a fact.
+     *
+     * <p>Excluded paths contribute to neither capacity nor omission arithmetic:
+     * they are outside the declared supported boundary rather than missing from
+     * within it.</p>
+     */
+    public record ManaSourceExclusion(
+            Card source,
+            SpellAbility ability,
+            List<String> producibleColors,
+            Player viewer
+    ) {
+        public Map<String, Object> toJson() {
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("unit", "MANA_ABILITY");
+            result.put("outcome", "EXCLUDED");
+            result.put("sourceCardId", "card-" + source.getId());
+            result.put("manaAbilityId", "ability-" + ability.getId());
+            result.put("source", ObservationWriter.card(source, viewer));
+            result.put("reason", "mana-source-with-selectable-colour");
+            result.put("producibleColors", producibleColors);
+            return result;
+        }
     }
 
     /**

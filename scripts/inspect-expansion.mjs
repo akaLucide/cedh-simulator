@@ -4,7 +4,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildForgeDecks } from './lib/decks.mjs';
 import { assertPinnedForgeDistribution } from './lib/forge-preflight.mjs';
-import { assertReproducibleBundles, assertValidObservation } from './lib/observations.mjs';
+import {
+  assertReproducibleBundles,
+  assertValidObservation,
+  isExpandedAction
+} from './lib/observations.mjs';
 import { schemaErrors } from './lib/schema.mjs';
 
 /**
@@ -154,27 +158,27 @@ for (const name of expectExclusionFor) {
   }
 }
 for (const reason of expectSkipped) {
-  if (!Object.hasOwn(expansion.skippedCandidates ?? {}, reason)) {
-    failures.push(`expected a skipped candidate with reason ${reason}`);
+  // Asserted straight from the authoritative per-unit record. There is no
+  // aggregate reason-count map to consult, precisely so the two cannot drift.
+  const record = expansion.inspectedAbilities.find(
+    (entry) => entry.outcome === 'SKIPPED' && entry.reason === reason
+  );
+  if (!record) {
+    failures.push(`expected an inspected SKIPPED ability with reason ${reason}`);
   } else {
-    const record = expansion.inspectedAbilities.find((entry) => entry.reason === reason);
-    if (!record || record.outcome !== 'SKIPPED') {
-      failures.push(`expected an inspected SKIPPED ability recording ${reason}`);
-    } else {
-      console.log(`  skipped ${record.source?.name}: ${reason}`);
-    }
+    console.log(`  skipped ${record.source?.name}: ${reason}`);
   }
 }
 for (const name of expectNoExpandedFor) {
   const expanded = capture.availableActions.actions.filter(
-    (action) => action.expansionVersion !== undefined && action.source?.name === name
+    (action) => isExpandedAction(action) && action.source?.name === name
   );
   if (expanded.length > 0) {
     failures.push(`${name} must produce no concrete expanded action, found ${expanded.length}`);
   }
   const raw = capture.availableActions.actions.find(
     (action) => action.category === 'CAST_SPELL'
-      && action.expansionVersion === undefined
+      && !isExpandedAction(action)
       && action.source?.name === name
   );
   if (!raw) {

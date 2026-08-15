@@ -31,6 +31,14 @@ public final class IncompleteEnumerationFaultMain {
     }
 
     public static void main(String[] args) {
+        // A truncated enumeration always knows of at least one action it did not
+        // emit, so the fixture carries an inspected unit whose capacity exceeds what
+        // it emitted. Card and ability references are null because this entry point
+        // runs without a game; only the counts matter to the guard, and nothing here
+        // is ever serialized.
+        SimpleSpellActionExpander.InspectedAbility partiallyEmitted =
+                SimpleSpellActionExpander.InspectedAbility.expanded(null, null, 4, 130, 520, 512);
+
         SimpleSpellActionExpander.Expansion truncated = new SimpleSpellActionExpander.Expansion(
                 List.of(),
                 Map.of("synthetic-truncated-fixture", 1),
@@ -38,7 +46,7 @@ public final class IncompleteEnumerationFaultMain {
                 true,
                 null,
                 false,
-                List.of(),
+                List.of(partiallyEmitted),
                 List.of(),
                 List.of()
         );
@@ -48,7 +56,8 @@ public final class IncompleteEnumerationFaultMain {
                 + " truncated=" + truncated.truncated()
                 + " candidateScanComplete=" + truncated.candidateScanComplete()
                 + " totalCapacity=" + truncated.totalCapacity()
-                + " omittedActionCount=" + truncated.omittedActionCount());
+                + " omittedActionCount=" + truncated.omittedActionCount()
+                + " omittedActionCountAtLeast=" + truncated.omittedActionCountAtLeast());
 
         try {
             EnumerationGuard.requireCompleteEnumeration("Synthetic truncated enumeration", truncated);

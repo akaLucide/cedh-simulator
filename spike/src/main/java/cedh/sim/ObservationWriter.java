@@ -322,6 +322,11 @@ public final class ObservationWriter {
         }
 
         result.put("actions", actions);
+        // Counts every published action object - pass, raw candidates, land plays and
+        // expanded casts alike. Deliberately distinct from the expander's
+        // emittedActionCount, which counts only what the simple-spell expander
+        // produced.
+        result.put("publishedActionCount", actions.size());
         result.put("simpleSpellExpansion", simpleSpellExpansion(viewer, expansion));
         result.put("completeness", "audited-actions-only-executable-derived-from-unrepresented-choices");
         result.put("limitations", List.of(
@@ -403,7 +408,10 @@ public final class ObservationWriter {
             exclusions.add(exclusion.toJson());
         }
         result.put("manaSourceExclusions", exclusions);
-        result.put("skippedCandidates", expansion.skippedCandidates());
+        // No aggregate skip-count map is published. `inspectedAbilities` is the
+        // authoritative per-unit record and suppression has `suppressedReason`; a
+        // second, unchecked aggregate could only drift from them. The map remains
+        // available inside Java for diagnostics and exception messages.
         return result;
     }
 

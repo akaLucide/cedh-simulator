@@ -486,7 +486,7 @@ public final class SimpleSpellActionExpander {
             return new InspectedAbility(source, ability, "SKIPPED", reason, null, null, null, null);
         }
 
-        static InspectedAbility expanded(Card source, SpellAbility ability,
+        public static InspectedAbility expanded(Card source, SpellAbility ability,
                 int targetCount, int planCount, int capacity, int emitted) {
             return new InspectedAbility(source, ability, "EXPANDED", null,
                     targetCount, planCount, capacity, emitted);

@@ -71,7 +71,8 @@
         "actions",
         "completeness",
         "limitations",
-        "simpleSpellExpansion"
+        "simpleSpellExpansion",
+        "publishedActionCount"
       ],
       "properties": {
         "enumerationVersion": {
@@ -80,7 +81,12 @@
         "actions": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/action"
+            "$ref": "#/$defs/action",
+            "allOf": [
+              {
+                "$ref": "#/$defs/expandedActionShape"
+              }
+            ]
           }
         },
         "completeness": {
@@ -94,6 +100,11 @@
         },
         "simpleSpellExpansion": {
           "$ref": "#/$defs/simpleSpellExpansion"
+        },
+        "publishedActionCount": {
+          "description": "Every published action object: pass, raw candidates, land plays and expanded casts. Distinct from simpleSpellExpansion.emittedActionCount, which counts only simple-spell expander output.",
+          "type": "integer",
+          "minimum": 0
         }
       }
     },
@@ -692,9 +703,6 @@
               "items": {
                 "$ref": "#/$defs/manaSourceExclusion"
               }
-            },
-            "skippedCandidates": {
-              "type": "object"
             }
           },
           "additionalProperties": false
@@ -737,6 +745,12 @@
                 },
                 "uninspectedSourceCards": {
                   "maxItems": 0
+                },
+                "omittedActionCountAtLeast": {
+                  "const": 0
+                },
+                "manaSourceExclusions": {
+                  "maxItems": 0
                 }
               },
               "required": [
@@ -750,7 +764,9 @@
                 "omittedActionCount",
                 "emittedActionCount",
                 "inspectedAbilities",
-                "uninspectedSourceCards"
+                "uninspectedSourceCards",
+                "omittedActionCountAtLeast",
+                "manaSourceExclusions"
               ]
             },
             {
@@ -790,6 +806,12 @@
                 },
                 "uninspectedSourceCards": {
                   "maxItems": 0
+                },
+                "omittedActionCountAtLeast": {
+                  "const": 0
+                },
+                "manaSourceExclusions": {
+                  "maxItems": 0
                 }
               },
               "required": [
@@ -803,7 +825,9 @@
                 "omittedActionCount",
                 "emittedActionCount",
                 "inspectedAbilities",
-                "uninspectedSourceCards"
+                "uninspectedSourceCards",
+                "omittedActionCountAtLeast",
+                "manaSourceExclusions"
               ]
             },
             {
@@ -838,6 +862,9 @@
                 },
                 "uninspectedSourceCards": {
                   "maxItems": 0
+                },
+                "omittedActionCountAtLeast": {
+                  "const": 0
                 }
               },
               "required": [
@@ -849,7 +876,8 @@
                 "candidateUnitsMayBeUninspected",
                 "totalCapacity",
                 "omittedActionCount",
-                "uninspectedSourceCards"
+                "uninspectedSourceCards",
+                "omittedActionCountAtLeast"
               ]
             },
             {
@@ -879,6 +907,10 @@
                 },
                 "omittedActionCount": {
                   "type": "null"
+                },
+                "omittedActionCountAtLeast": {
+                  "type": "integer",
+                  "minimum": 1
                 }
               },
               "required": [
@@ -889,7 +921,8 @@
                 "candidateScanComplete",
                 "candidateUnitsMayBeUninspected",
                 "totalCapacity",
-                "omittedActionCount"
+                "omittedActionCount",
+                "omittedActionCountAtLeast"
               ]
             }
           ]
@@ -1137,6 +1170,29 @@
         "counters": {
           "type": "object"
         }
+      }
+    },
+    "expandedActionShape": {
+      "description": "An expander-produced action is exactly a CAST_SPELL carrying the supported simple-spell expansion version. No other category may carry expansionVersion, and no other version is recognised.",
+      "if": {
+        "type": "object",
+        "required": [
+          "expansionVersion"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "CAST_SPELL"
+          },
+          "expansionVersion": {
+            "const": 1
+          }
+        },
+        "required": [
+          "category",
+          "expansionVersion"
+        ]
       }
     }
   }

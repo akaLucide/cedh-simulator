@@ -287,8 +287,9 @@ export function simpleSpellExpansionErrors(expansion, actions = []) {
     errors.push(`${label}: an unattempted expansion cannot have inspected abilities`);
   }
 
-  // The published action array must match the declared emitted count.
-  const expandedActions = actions.filter((action) => action.expansionVersion !== undefined);
+  // The published action array must match the declared emitted count, counted
+  // through the one exact selector rather than "carries an expansionVersion".
+  const expandedActions = actions.filter(isExpandedAction);
   if (expandedActions.length !== expansion.emittedActionCount) {
     errors.push(
       `${label}: emittedActionCount ${expansion.emittedActionCount} does not match `
@@ -351,6 +352,31 @@ export function simpleSpellExpansionErrors(expansion, actions = []) {
     }
   }
 
+  // A truncated enumeration always knows of at least one action it did not emit;
+  // reporting a zero lower bound would claim the limit cost nothing. Every other
+  // state has nothing left over, so its bound is exactly zero.
+  if (expansion.truncated === true) {
+    if (!(expansion.omittedActionCountAtLeast >= 1)) {
+      errors.push(
+        `${label}: a truncated expansion must report omittedActionCountAtLeast >= 1, `
+        + `got ${expansion.omittedActionCountAtLeast}`
+      );
+    }
+  } else if (expansion.omittedActionCountAtLeast !== 0) {
+    errors.push(
+      `${label}: only a truncated expansion may report a positive `
+      + `omittedActionCountAtLeast, got ${expansion.omittedActionCountAtLeast}`
+    );
+  }
+
+  // No mana scan happens before the candidate loop runs, so an expansion that
+  // never got there cannot have inspected a mana ability.
+  if ((expansion.attempted !== true || expansion.suppressedReason) && exclusions.length > 0) {
+    errors.push(
+      `${label}: an unattempted or suppressed expansion cannot report mana-source exclusions`
+    );
+  }
+
   // Excluded mana abilities are outside the boundary, not missing from inside it,
   // so they must never appear as inspected units or contribute to the sums.
   const inspectedIds = new Set(inspected.map((record) => record.abilityId));
@@ -374,6 +400,29 @@ export function simpleSpellExpansionErrors(expansion, actions = []) {
 }
 
 /**
+ * Every published action object is counted, whatever produced it.
+ *
+ * Deliberately separate from the expander's `emittedActionCount`: conflating the
+ * two would let a change in one silently satisfy the other.
+ */
+export function publishedActionCountErrors(availableActions) {
+  const actions = availableActions?.actions ?? [];
+  if (!Number.isInteger(availableActions?.publishedActionCount)) {
+    return ['availableActions.publishedActionCount must be an integer'];
+  }
+  if (availableActions.publishedActionCount < 0) {
+    return ['availableActions.publishedActionCount must not be negative'];
+  }
+  if (availableActions.publishedActionCount !== actions.length) {
+    return [
+      `availableActions.publishedActionCount ${availableActions.publishedActionCount} `
+      + `does not match the ${actions.length} published action objects`
+    ];
+  }
+  return [];
+}
+
+/**
  * v3 contract. Keeps every v2 action rule and adds enumeration honesty: the
  * capture must state what the expander attempted, inspected, emitted, and could
  * not know.
@@ -385,6 +434,7 @@ function observationV3Errors(observation) {
   errors.push(...informationBoundaryErrors(observation));
   errors.push(...fixtureErrors(observation.fixture));
   errors.push(...actionContractErrors(observation));
+  errors.push(...publishedActionCountErrors(observation.availableActions));
   errors.push(...expandedActionFieldErrors(observation.availableActions.actions));
   errors.push(...simpleSpellExpansionErrors(
     observation.availableActions.simpleSpellExpansion,
@@ -395,6 +445,26 @@ function observationV3Errors(observation) {
 
 
 /**
+ * The supported simple-spell expansion version, mirroring
+ * `SimpleSpellActionExpander.EXPANSION_VERSION` in Java.
+ */
+export const SIMPLE_SPELL_EXPANSION_VERSION = 1;
+
+/**
+ * The one selector for expander output.
+ *
+ * Used identically by emitted-count validation, field-coverage checks, semantic
+ * sequence extraction, and probe assertions. "Any action carrying an
+ * expansionVersion" is not the same question: it would silently absorb a future
+ * expander's output, or an action of another category that happened to carry the
+ * field, into counts that are supposed to describe this expander alone.
+ */
+export function isExpandedAction(action) {
+  return action?.category === 'CAST_SPELL'
+    && action?.expansionVersion === SIMPLE_SPELL_EXPANSION_VERSION;
+}
+
+/**
  * Every field an expanded action may carry, and how comparison treats it.
  *
  * The inventory is exhaustive on purpose. A new field added to expanded actions
@@ -402,13 +472,16 @@ function observationV3Errors(observation) {
  * or silently escaping the semantic comparison — the failure mode this
  * classification exists to prevent.
  *
- *   SEMANTIC        compared directly; a difference is a real difference
- *   DEBUG_IDENTITY  a raw Forge id; identity-normalized, never byte-compared
- *   DERIVED_IDENTITY composed from Forge ids; identity-normalized
- *   SEMANTIC_NESTED compared after the same treatment is applied inside
+ *   SEMANTIC                  compared directly; a difference is a real difference
+ *   DEBUG_IDENTITY            a raw Forge id; dropped before comparison
+ *   EXCLUDED_DERIVED_IDENTITY composed from raw Forge ids; dropped before
+ *                             comparison and never traversed by the token
+ *                             allocator, so it cannot influence token discovery
+ *                             order
+ *   SEMANTIC_NESTED           compared after the same treatment is applied inside
  */
 export const EXPANDED_ACTION_FIELD_CLASSES = Object.freeze({
-  id: 'DERIVED_IDENTITY',
+  id: 'EXCLUDED_DERIVED_IDENTITY',
   category: 'SEMANTIC',
   expansionVersion: 'SEMANTIC',
   sourceCardId: 'DEBUG_IDENTITY',
@@ -425,11 +498,32 @@ export const EXPANDED_ACTION_FIELD_CLASSES = Object.freeze({
   choices: 'SEMANTIC_NESTED'
 });
 
+/**
+ * The frozen order the projection is built in.
+ *
+ * Explicit rather than derived from the producer's object insertion order, so a
+ * reordering in the serializer cannot silently change what two runs compare.
+ */
+export const PROJECTED_FIELD_ORDER = Object.freeze([
+  'category',
+  'expansionVersion',
+  'source',
+  'description',
+  'printedManaCost',
+  'manaCost',
+  'usesTargeting',
+  'timingAndZoneLegal',
+  'unrepresentedChoices',
+  'executable',
+  'requiresChoiceExpansion',
+  'choices'
+]);
+
 /** Rejects an expanded-action field nobody has classified. */
 export function expandedActionFieldErrors(actions = []) {
   const errors = [];
   for (const action of actions) {
-    if (action.expansionVersion === undefined) continue;
+    if (!isExpandedAction(action)) continue;
     for (const field of Object.keys(action)) {
       if (!Object.hasOwn(EXPANDED_ACTION_FIELD_CLASSES, field)) {
         errors.push(
@@ -452,18 +546,18 @@ export function expandedActionFieldErrors(actions = []) {
  * difference between two runs still compares unequal.
  */
 export function semanticExpandedActionSequence(capture) {
-  const actions = (capture?.availableActions?.actions ?? [])
-    .filter((action) => action.expansionVersion !== undefined);
+  const actions = (capture?.availableActions?.actions ?? []).filter(isExpandedAction);
   const unclassified = expandedActionFieldErrors(actions);
   if (unclassified.length > 0) {
     throw new Error(`cannot project unclassified fields: ${unclassified.join('; ')}`);
   }
   const projected = actions.map((action) => {
     const result = {};
-    for (const [field, value] of Object.entries(action)) {
-      const kind = EXPANDED_ACTION_FIELD_CLASSES[field];
-      if (kind === 'DEBUG_IDENTITY') continue;
-      result[field] = value;
+    // Built in the frozen order, and only from fields that survive projection.
+    // The composite `id` is derived entirely from raw Forge ids, so it is dropped
+    // here and never reaches the token allocator.
+    for (const field of PROJECTED_FIELD_ORDER) {
+      if (Object.hasOwn(action, field)) result[field] = action[field];
     }
     return result;
   });

@@ -753,6 +753,7 @@
         "requiresChoiceExpansion": true
       }
     ],
+    "publishedActionCount": 11,
     "simpleSpellExpansion": {
       "attempted": false,
       "suppressedReason": null,
@@ -767,8 +768,7 @@
       "candidateUnitsMayBeUninspected": true,
       "inspectedAbilities": [],
       "uninspectedSourceCards": [],
-      "manaSourceExclusions": [],
-      "skippedCandidates": {}
+      "manaSourceExclusions": []
     },
     "completeness": "audited-actions-only-executable-derived-from-unrepresented-choices",
     "limitations": [

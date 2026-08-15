@@ -1223,6 +1223,7 @@
         }
       }
     ],
+    "publishedActionCount": 21,
     "simpleSpellExpansion": {
       "attempted": true,
       "suppressedReason": null,
@@ -1386,12 +1387,7 @@
         }
       ],
       "uninspectedSourceCards": [],
-      "manaSourceExclusions": [],
-      "skippedCandidates": {
-        "not-a-targeted-spell": 6,
-        "not-exactly-one-target": 1,
-        "no-supported-mana-plan": 1
-      }
+      "manaSourceExclusions": []
     },
     "completeness": "audited-actions-only-executable-derived-from-unrepresented-choices",
     "limitations": [

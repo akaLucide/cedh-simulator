@@ -168,13 +168,31 @@ Audit a staged land without executing it:
 npm run probe:land:staged-audit -- --forge-root C:\path\to\extracted-forge
 ```
 
-Verify the two refusal paths. Each underlying probe is *expected* to fail by
-throwing `UnrepresentedChoiceException`; the wrapper exits 0 only when all the
-expected evidence is present:
+Verify the refusal paths. Each underlying probe is *expected* to fail by
+throwing its typed exception; the wrapper exits 0 only when all the expected
+evidence is present:
 
 ```powershell
-npm run verify:choice-guard -- --forge-root C:\path\to\extracted-forge
-npm run verify:hook-fault  -- --forge-root C:\path\to\extracted-forge
+npm run verify:choice-guard      -- --forge-root C:\path\to\extracted-forge
+npm run verify:hook-fault        -- --forge-root C:\path\to\extracted-forge
+npm run verify:spell-guard       -- --forge-root C:\path\to\extracted-forge
+npm run verify:enumeration-guard -- --forge-root C:\path\to\extracted-forge
+```
+
+Inspect the v3 enumeration boundaries. These never cast anything: the evidence is
+an action that is deliberately *not* emitted.
+
+```powershell
+npm run probe:mana-colour-exclusion  -- --forge-root C:\path\to\extracted-forge
+npm run probe:copy-targets-exclusion -- --forge-root C:\path\to\extracted-forge
+npm run probe:floating-mana          -- --forge-root C:\path\to\extracted-forge
+```
+
+Regenerate the committed v3 captures:
+
+```powershell
+npm run capture:v3-natural  -- --forge-root C:\path\to\extracted-forge --repeat 2
+npm run capture:v3-targeted -- --forge-root C:\path\to\extracted-forge --repeat 2
 ```
 
 Confirm that an unaudited cast is refused rather than executed:
@@ -388,3 +406,128 @@ Ids are **rewritten, not deleted**. Deleting them would also delete the proof
 that the card which left hand is the card that reached the battlefield, so a
 rewired identity relationship still compares unequal. This is **not** canonical
 cross-run identity; that remains M2.
+
+## v2 to v3 contract change: enumeration honesty
+
+### Why
+
+v2 made every *action* honest: `executable` is true exactly when nothing about
+that action is unrepresented. It said nothing about the **set**. A capture could
+publish eight complete actions while the expander had silently stopped at its
+action limit, or had skipped candidates it could not support, and nothing in the
+document revealed either. Choosing "the best available action" from a set that is
+quietly partial looks like a decision over the legal options and is not one.
+
+v3 adds `availableActions.simpleSpellExpansion`, which states what the expander
+attempted, what it inspected, what it emitted, and — importantly — what it could
+not know.
+
+### The four states
+
+`simpleSpellExpansion` is always in exactly one state, enforced by mutually
+exclusive schema branches:
+
+| State | Meaning |
+| --- | --- |
+| **Unattempted** | The path never ran the expander. Most observation paths, which must not trigger the expander's Forge-object mutations. |
+| **Suppressed** | Attempted, then refused for a declared reason — floating mana, today. |
+| **Complete** | Ran, inspected every candidate unit, never hit the limit. `totalCapacity` and `omittedActionCount` are exact. |
+| **Truncated** | Hit the action limit. The scan stopped, so `totalCapacity` and `omittedActionCount` are `null`. |
+
+`complete` has **one** definition, on the typed `Expansion` record in
+`SimpleSpellActionExpander`. The serializer and the pre-execution guard consume
+the same instance, so a capture cannot claim a completeness the guard would
+refuse.
+
+### Knowing versus guessing
+
+When the candidate scan stops early, later hand cards are never inspected. They
+could contribute any number of actions, so `totalCapacity` and
+`omittedActionCount` are `null` rather than a plausible-looking number.
+`omittedActionCountAtLeast` is always present: summed only over units actually
+inspected, it is a proven lower bound in every state.
+
+`inspectedAbilities` records real `(sourceCard, ability)` units only. Cards the
+break chain never reached appear in `uninspectedSourceCards` as source-card-level
+evidence — no ability records are fabricated for them, because nothing inspected
+their abilities.
+
+### Two fail-closed boundaries
+
+Both were found by probing the pinned build, and both are name-free.
+
+**Selectable-colour mana abilities.** Filtering is per mana *ability*, not per
+card: a dual land exposes a separate single-colour ability per colour and stays
+admitted. An ability that can itself produce several colours is excluded, because
+Forge resolves that colour through `PlayerController.chooseColor` at activation.
+A probe confirmed that committing the colour through Forge's own supported
+`handlePlayingSpellAbility` callback — `AbilityManaPart.setExpressChoice` —
+narrows the offered set but still invokes the hook and still delegates to stock
+AI, so direct commitment is not available. Exclusions are published in
+`manaSourceExclusions` with reason `mana-source-with-selectable-colour` and
+sorted `producibleColors`. Excluded paths contribute to neither capacity nor
+omission arithmetic: they are outside the declared boundary, not missing from
+inside it.
+
+**Spells that copy themselves with new targets.** Detected as an
+`ApiType.CopySpellAbility` step carrying `MayChooseTarget$ True` in a trigger's
+overriding-ability chain — the shape Forge expands the Storm keyword into, and
+one that 195 card scripts in this build share. Such a spell may present exactly
+one represented target and still create further target decisions on resolution.
+It is recorded as an inspected `SKIPPED` ability with reason
+`spell-copy-targets-not-represented`, and its raw candidate stays visible and
+non-executable with `UNSUPPORTED_ACTION_EXPANSION`.
+
+`complete` is therefore always scoped to the declared supported boundary. The
+static `limitations` list discloses the unsupported classes; `manaSourceExclusions`
+discloses the specific inspected instances.
+
+### The set-level guard
+
+`EnumerationGuard.requireCompleteEnumeration` refuses before an action is
+selected or executed when `complete` is false, throwing the typed
+`IncompleteEnumerationException` with its own exit code (4, distinct from the
+choice refusal's 3). It sits alongside the per-action represented-choice gate
+rather than replacing it: an action can be individually complete while the set it
+came from is not. It makes no claim that expansion itself is observationally
+pure — it only refuses to *act* on a set known to be partial.
+
+### What the guard evidence does and does not prove
+
+A survey of all four approved decks found no spell that can reach the 512-action
+limit inside the supported boundary, so **no natural truncated fixture exists**.
+Rather than lower the limit, add a configurable cap, or introduce a runtime
+bypass, `verify:enumeration-guard` constructs a truncated `Expansion` value
+directly in a test-only entry point that production cannot reach.
+
+That evidence proves the schema, the validator arithmetic, the typed refusal, the
+exit code, and the guard's placement before selection. It does **not** prove that
+real Forge ever reached 512 actions, that a natural truncated prefix exists, that
+a naturally truncated state was refused, anything about enumeration performance
+at the limit, or reproducibility of a natural truncated fixture.
+
+### Schema versus validator
+
+JSON Schema owns structure: types, required fields, enums, nullability, permitted
+field presence, and the four mutually exclusive branches. It cannot express
+arithmetic across records, so the hand-written validator owns action-array
+length, per-record capacity and omission relationships, aggregate sums, expanded
+action counts, and the rule that exclusions never enter those sums. **Stock Ajv
+checks none of the arithmetic.** Both must be able to reject independently, so a
+bug in one cannot mask the other.
+
+### Semantic comparison
+
+Every expanded-action field is inventoried and classified in
+`EXPANDED_ACTION_FIELD_CLASSES`. An unclassified field fails validation rather
+than silently joining or silently escaping comparison. Comparison projects first
+— dropping documented debug-only identity fields — then identity-normalizes what
+remains, preserving membership and order. Order is never sorted away, so a
+genuine ordering difference still compares unequal, and raw Forge ids never need
+to match.
+
+### What stays frozen
+
+v1 and v2 captures and schemas are byte-frozen and hash-pinned in
+`test/evidence.test.mjs`. Nothing from either version is regenerated; v3 evidence
+goes into `*-v3.json` captures instead.

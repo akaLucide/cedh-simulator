@@ -19,6 +19,16 @@ const projectRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
  * of what was actually observed, so they are never rewritten. New behaviour goes
  * into *-v2.json captures instead.
  */
+const FROZEN_V2_EVIDENCE = {
+  'examples/priority-observation-v2.json': '5d09b7aa0ed5dec44c187856df11a7c863ff80c8454830e7c92bc77f0f3ff2bd',
+  'examples/spell-action-before-v2.json': '93237e5d0841866b8adfb7f30f9fdfff337aa91e147540f4b06686a9a4e1d601',
+  'examples/staged-choice-free-land-after-v2.json': 'a71f2dfa5432ae81f8daca96358048debb4d8e1cce0a6b464ef8fe046ad08d80',
+  'examples/staged-choice-free-land-before-v2.json': '896cd25692624ea769b38337dfbd8be1e196bfc1b740131ee125612a7b30e0fc',
+  'examples/staged-optional-cost-land-before-v2.json': '68f8ae36bc6e4c2d4e4edfe12d94fd79deaca9a309ea2788f6fe5cce098de1df',
+  'examples/targeted-spell-before-v2.json': '36137579006aa105913d17422792189678749c2cf76bdd60306c2ff49bbed6c2',
+  'schemas/observation-v2.schema.json': '7bac45864bfc1be755587891441e22bc02e190eedabb1b3a3712dc8da04cc251'
+};
+
 const FROZEN_V1_EVIDENCE = {
   'examples/land-action-after-v1.json': '57caeb482cbe8c7e79878fe99136ab2eee901ca6a515030a472cef88acd43f4e',
   'examples/land-action-before-v1.json': '8cc42b701cbfc7a5c1de6274c20ced8d2e1ccff48491e0e2139500bdc54bff8e',
@@ -48,6 +58,18 @@ test('A12: frozen v1 evidence is byte-unchanged', async () => {
     actual[relativePath] = await sha256(relativePath);
   }
   assert.deepEqual(actual, FROZEN_V1_EVIDENCE);
+});
+
+/**
+ * v2 joins v1 as frozen evidence. Adding v3 must not regenerate the captures
+ * that proved v2, or the record of what v2 actually produced is destroyed.
+ */
+test('frozen v2 evidence is byte-unchanged', async () => {
+  const actual = {};
+  for (const relativePath of Object.keys(FROZEN_V2_EVIDENCE)) {
+    actual[relativePath] = await sha256(relativePath);
+  }
+  assert.deepEqual(actual, FROZEN_V2_EVIDENCE);
 });
 
 test('A17: no adapter source hardcodes an approved card name', async () => {
